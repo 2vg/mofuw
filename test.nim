@@ -5,6 +5,15 @@ proc accept4(a1: cint, a2: ptr SockAddr, a3: ptr Socklen, flags: cint): cint
   {.importc, header: "<sys/socket.h>".}
 
 var
+  loop = ev_default_loop(0)
+
+  #[
+  async_read = proc(fd: cint) =
+    let r = w.fd.SocketHandle.recv(addr(incoming), incoming.len, 0).cint
+
+  read_cb: ev_async_cb = proc(loop: ptr ev_loop_t, w: ptr ev_async, revents: cint): void {.cdecl.} =
+    read_watcher: ev_async]#
+
   # import TCP_NODELAY for disable Nagle algorithm
   TCP_NODELAY {.importc: "TCP_NODELAY", header: "<netinet/tcp.h>".}: cint
 
@@ -47,6 +56,8 @@ var
 
     var client = w.fd.accept4(cast[ptr SockAddr](addr(sockAddress)), addr(addrLen), SOCK_NONBLOCK or SOCK_CLOEXEC)
 
+    w.fd.SocketHandle.setSockOptInt(cint(IPPROTO_TCP), TCP_NODELAY, 1)
+
     ev_io_init(client_watcher, client_cb, client, EV_READ)
     ev_io_start(loop, client_watcher)
 
@@ -58,8 +69,6 @@ proc newServerSocket(port: int = 8080, backlog: int = SOMAXCONN): cint =
   server.setSockOpt(OptReuseAddr, true)       
   # reuse port
   server.setSockOpt(OptReusePort, true)
-  # disable Nagle algorithm
-  server.getFd.setSockOptInt(cint(IPPROTO_TCP), TCP_NODELAY, 1)
   # set nonblocking
   server.getFd.setBlocking(false)
 
@@ -71,12 +80,14 @@ proc newServerSocket(port: int = 8080, backlog: int = SOMAXCONN): cint =
   return server.getFd().cint
 
 var
-  loop = ev_default_loop(0)
   watcher: ev_io
   server = newServerSocket()
 
 ev_io_init(watcher.addr, server_cb, server, EV_READ)
 ev_io_start(loop, watcher.addr)
+
+#setMinPoolSize(countProcessors())
+#setMaxPoolSize(countProcessors())
 
 ev_loop(loop, 0)
 
