@@ -23,14 +23,22 @@ type
   http_res = object
     fd: cint
     
+  router = object
+    `method`: string
+    path: string
+    cb: proc(req: http_req)
 
 proc getMethod(req: http_req): string =
   return cast[string](req.req_line.reqmethod)[0 .. req.req_line.reqmethodLen]
+
+proc getPath(req: http_req): string =
+  return cast[string](req.req_line.reqpath)[0 .. req.req_line.reqpathLen]
 
 var
   server: uv_tcp_t
   loop: ptr uv_loop_t
   sockaddr: SockAddrIn
+  ROUTER: seq[router]
   body: cstring = "HTTP/1.1 200 OK" & "\r\L" &
                   "Connection: keep-alive" & "\r\L" &
                   "Content-Length: 11"  & "\r\L" &
@@ -99,7 +107,20 @@ proc mofuw_run(cb: proc(req: http_req)) =
   discard uv_listen(cast[ptr uv_stream_t](addr server), backlog, connection_cb)
   discard uv_run(loop, UV_RUN_DEFAULT)
 
-mofuw_init(8080, 1024)
-mofuw_run((proc() = 
-  # hoge
-))
+proc mofuw_GET(path: string, cb: proc(req: http_req)) =
+  var r: router
+
+  router.method = "GET"
+  router.path = path
+  router.cb = cb
+
+  ROUTER.add(r)
+
+
+# mofuw_init(8080, 1024)
+# proc handler(req: http_req) =
+#   hoge
+# mofuw_GET("/", handler)
+# mofuw_run((proc() = 
+#   hoge
+#))
