@@ -35,8 +35,8 @@ const token = [
 
 type
   HttpReq*    = object
-    reqmethod*    : ptr char
-    reqmethodLen* : int
+    `method`*    : ptr char
+    methodLen* : int
     path*         : ptr char
     pathLen*      : int
     minor*        : ptr char
@@ -51,10 +51,10 @@ type
 proc mp_req*[T](req: ptr char, httpreq: var HttpReq, header: var ptr T): int =
 
   # argment initialization
-  httpreq.reqmethod    = nil
+  httpreq.method    = nil
   httpreq.path      = nil
   httpreq.minor = nil
-  httpreq.reqmethodLen = 0
+  httpreq.methodLen = 0
   httpreq.pathLen   = 0
   httpreq.headerLen    = 0
   
@@ -81,8 +81,8 @@ proc mp_req*[T](req: ptr char, httpreq: var HttpReq, header: var ptr T): int =
     else:
       buf += 1
 
-  httpreq.reqmethod = cast[ptr char](start)
-  httpreq.reqmethodLen = buf - start - 2
+  httpreq.method = cast[ptr char](start)
+  httpreq.methodLen = buf - start - 2
 
   # PATH check
   start = buf
@@ -226,14 +226,14 @@ proc mp_req*[T](req: ptr char, httpreq: var HttpReq, header: var ptr T): int =
       hdlen += 1
 
   httpreq.headerLen = hdlen
-  return 0
+  return buf - cast[int](req) + 1
 
 # test
 when isMainModule:
   import times
 
   var 
-    test = "GET /test HTTP/1.1\r\LHost: 127.0.0.1:8080\r\LConnection: keep-alive\r\LCache-Control: max-age=0\r\LAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\LUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.56 Safari/537.17\r\LAccept-Encoding: gzip,deflate,sdch\r\LAccept-Language: en-US,en;q=0.8\r\LAccept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.3\r\LCookie: name=mofuparser\r\L\r\L"
+    test = "GET /test HTTP/1.1\r\LHost: 127.0.0.1:8080\r\LConnection: keep-alive\r\LCache-Control: max-age=0\r\LAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\LUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.56 Safari/537.17\r\LAccept-Encoding: gzip,deflate,sdch\r\LAccept-Language: en-US,en;q=0.8\r\LAccept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.3\r\LCookie: name=mofuparser\r\L\r\Ltest=hoge"
 
     htreq: HttpReq
     hd : array[64, headers]
@@ -248,13 +248,18 @@ when isMainModule:
   proc print(value: string, length: int) =
     echo value[0 .. length]
 
-  if mp_req(test[0].addr, htreq, hdaddr) == 0:
-    print($htreq.reqmethod, htreq.reqmethodLen)
+  if mp_req(test[0].addr, htreq, hdaddr) > 0:
+    print($htreq.method, htreq.methodLen)
     print($htreq.path, htreq.pathLen)
     print($htreq.minor, 0)
     for i in 0 .. htreq.headerLen - 1:
       # header
       print($(hd[i].name), hd[i].namelen)
       print($(hd[i].value), hd[i].valuelen)
+    echo mp_req(test[0].addr, htreq, hdaddr)
+    echo test[mp_req(test[0].addr, htreq, hdaddr) - 5]
+    echo test[mp_req(test[0].addr, htreq, hdaddr) - 5].int
+    echo test[mp_req(test[0].addr, htreq, hdaddr)]
+    echo test[mp_req(test[0].addr, htreq, hdaddr)].int
   else:
     echo "invalid request."

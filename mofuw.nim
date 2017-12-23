@@ -16,7 +16,7 @@ type
     handle: ptr uv_handle_t
     req_line: HttpReq
     req_header: array[64, headers]
-    req_header_addr = req_header.addr
+    req_header_addr: ptr http_req.req_header
     # req_body: array[maxBodySize, char]
     # req_body_len: int
 
@@ -29,10 +29,10 @@ type
     cb: proc(req: http_req)
 
 proc getMethod(req: http_req): string =
-  return cast[string](req.req_line.reqmethod)[0 .. req.req_line.reqmethodLen]
+  return cast[string](req.req_line.method)[0 .. req.req_line.methodLen]
 
 proc getPath(req: http_req): string =
-  return cast[string](req.req_line.reqpath)[0 .. req.req_line.reqpathLen]
+  return cast[string](req.req_line.path)[0 .. req.req_line.pathLen]
 
 var
   server: uv_tcp_t
@@ -52,7 +52,7 @@ var
     buf[].base = alloc(size)
     buf[].len = size
 
-  return_res: void = proc(request: http_req) =
+  return_res: proc(request: http_req)
     # let m = getMethod(request)
     # 
 
@@ -92,27 +92,28 @@ var
 ######
 # MAIN
 ######
-proc mofuw_init(port: int = 8080, backlog: int = 128)
+proc mofuw_init(port: int = 8080, backlog: int = 128, cb: proc(request: http_req)) =
   loop = uv_default_loop()
 
-  discard uv_ip4_addr("0.0.0.0".cstring, port, saddr.addr)
+  discard uv_ip4_addr("0.0.0.0".cstring, port.cint, sockaddr.addr)
   discard uv_tcp_init(loop, server.addr)
 
   discard uv_tcp_nodelay(server.addr, 1)
 
-proc mofuw_run(cb: proc(req: http_req)) =
   return_res = cb
+  
+  discard uv_tcp_bind(server.addr, cast[ptr SockAddr](sockaddr.addr), 0)
+  discard uv_listen(cast[ptr uv_stream_t](addr server), backlog.cint, ev_connection)
 
-  discard uv_tcp_bind(server.addr, cast[ptr SockAddr](saddr.addr), 0)
-  discard uv_listen(cast[ptr uv_stream_t](addr server), backlog, connection_cb)
+proc mofuw_run() =
   discard uv_run(loop, UV_RUN_DEFAULT)
 
 proc mofuw_GET(path: string, cb: proc(req: http_req)) =
   var r: router
 
-  router.method = "GET"
-  router.path = path
-  router.cb = cb
+  r.method = "GET"
+  r.path = path
+  r.cb = cb
 
   ROUTER.add(r)
 
