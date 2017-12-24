@@ -42,11 +42,6 @@ var
   loop: ptr uv_loop_t
   sockaddr: SockAddrIn
   ROUTER: seq[router]
-  testbody*: cstring = "HTTP/1.1 200 OK" & "\r\L" &
-                       "Connection: keep-alive" & "\r\L" &
-                       "Content-Length: 11"  & "\r\L" &
-                       "Content-Type: text/plain; charset=utf-8" & "\r\L" & "\r\L" &
-                       "Hello World"
 
   ev_close*: uv_close_cb = proc(handle: ptr uv_handle_t) {.cdecl.} =
     return
