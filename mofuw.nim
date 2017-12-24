@@ -97,7 +97,6 @@ var
     var client = cast[ptr uv_stream_t](alloc(sizeof(uv_tcp_t)))
 
     discard uv_tcp_init(loop, cast[ptr uv_tcp_t](client))
-    discard uv_tcp_simultaneous_accepts(cast[ptr uv_tcp_t](client), 1)
     discard uv_accept(server, client)
     discard uv_read_start(client, ev_alloc, ev_read)
 
@@ -111,6 +110,7 @@ proc mofuw_init*(port: int = 8080, backlog: int = 128) =
   discard uv_tcp_init(loop, server.addr)
 
   discard uv_tcp_nodelay(server.addr, 1)
+  discard uv_tcp_simultaneous_accepts(server.addr, 1)
   
   discard uv_tcp_bind(server.addr, cast[ptr SockAddr](sockaddr.addr), 0)
   discard uv_listen(cast[ptr uv_stream_t](addr server), backlog.cint, ev_connection)
