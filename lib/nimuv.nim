@@ -672,8 +672,8 @@ proc uv_send_buffer_size*(handle: ptr uv_handle_t, value: cint): cint
 proc uv_recv_buffer_size*(handle: ptr uv_handle_t, value: cint): cint
   {.importc, cdecl, dynlib: libuv.}
 
-#proc uv_uv_fileno*(handle: ptr uv_handle_t, fd: uv_os_fd_t): cint
-#  {.importc, cdecl, dynlib: libuv.}
+proc uv_fileno*(handle: ptr uv_handle_t, fd: ptr uv_os_fd_t): cint
+  {.importc, cdecl, dynlib: libuv.}
 
 ##################
 #     uv_req     #

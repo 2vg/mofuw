@@ -148,5 +148,3 @@ proc `$$`*(code: HttpCode): string =
   of 504, 1504: "504 Gateway Timeout"
   of 505, 1505: "505 HTTP Version Not Supported"
   else:   $(int(code))
-
-echo $$Http11_200

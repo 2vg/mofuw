@@ -102,7 +102,7 @@ proc mp_req*[T](req: ptr char, httpreq: var HttpReq, header: var ptr T): int =
       buf += 1
 
   httpreq.path = cast[ptr char](start)
-  httpreq.pathLen = buf - start - 1
+  httpreq.pathLen = buf - start - 2
 
   # HTTP Version check
   # 'H' check

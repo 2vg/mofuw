@@ -1,5 +1,7 @@
 import lib/nimuv
 import lib/mofuparser
+import lib/httputils
+import nativesockets
 
 const
   kByte* = 1024
@@ -7,10 +9,15 @@ const
 
   maxBodySize = 1 * mByte
 
+  not_found_body = "HTTP/1.1 " & ($$HTTP11_404) & "\r\L" &
+                   "Connection: keep-alive" & "\r\L" &
+                   "Content-Length: 39"  & "\r\L" &
+                   "Content-Type: text/html; charset=utf-8" & "\r\L" & "\r\L" &
+                   "<center><h1>404 Not Found.</h1><center>"
+
 type
   #mofuw_t = object
   #  server: uv_tcp_t
-    
 
   http_req* = object
     handle*: ptr uv_handle_t
@@ -27,21 +34,17 @@ type
     buf*: uv_buf_t
     
   router* = object
-    `method`*: string
     path*: string
-    cb*: proc(req: http_req)
+    cb*: proc(req: ptr http_req, res: ptr http_res)
 
-proc getMethod*(req: http_req): string =
-  return cast[string](req.req_line.method)[0 .. req.req_line.methodLen]
+proc getMethod*(req: ptr http_req): string {.inline.} =
+  return ($(req.req_line.method))[0 .. req.req_line.methodLen]
 
-proc getPath*(req: http_req): string =
-  return cast[string](req.req_line.path)[0 .. req.req_line.pathLen]
+proc getPath*(req: ptr http_req): string {.inline.} =
+  return ($(req.req_line.path))[0 .. req.req_line.pathLen]
 
 var
-  server: uv_tcp_t
-  loop: ptr uv_loop_t
-  sockaddr: SockAddrIn
-  ROUTER: seq[router]
+  GET_router: seq[router] = @[]
 
   ev_close*: uv_close_cb = proc(handle: ptr uv_handle_t) {.cdecl.} =
     return
@@ -50,15 +53,14 @@ var
     buf[].base = alloc(size)
     buf[].len = size
 
-  return_res*: proc(request: ptr http_req, response: ptr http_res)
-    # let m = getMethod(request)
-    # 
-
   mofuw_send* = proc(res: ptr http_res, body: cstring) =
     res.buf.base = body
-
     res.buf.len = body.len
+
     discard uv_write(res.write_res, cast[ptr uv_stream_t](res.handle), res.buf.addr, 1, nil)
+
+  notFound* = proc(res: ptr http_res) =
+    mofuw_send(res, not_found_body)
 
   ev_read*: uv_read_cb = proc(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
     if nread == -4095:
@@ -70,8 +72,8 @@ var
       return
 
     var
-      request: http_req
-      response: http_res
+      request: ptr http_req = cast[ptr http_req](http_req.new)
+      response: ptr http_res = cast[ptr http_res](http_res.new)
 
     stream.data = request.addr
 
@@ -85,10 +87,25 @@ var
 
     let r = mp_req(cast[ptr char](buf.base), request.req_line, request.req_header_addr)
 
+    if r <= 0:
+      notFound(response)
+
     #request.req_body = cast[ptr cstring](buf.base)[r]
     #request.req_body_len = cast[ptr cstring](buf.base).len - r - 1
 
-    return_res(request.addr, response.addr)
+    case getMethod(request)
+    of "GET":
+      if GET_router.len == 0:
+        notFound(response)
+      else:
+        for value in GET_router:
+          if getPath(request) == value.path:
+            value.cb(request, response)
+          else:
+            notFound(response)
+    else:
+      notFound(response)
+
     dealloc(buf.base)
 
   ev_connection*: uv_connection_cb = proc(server: ptr uv_stream_t, status: cint) {.cdecl.} =
@@ -96,44 +113,41 @@ var
 
     var client = cast[ptr uv_stream_t](alloc(sizeof(uv_tcp_t)))
 
-    discard uv_tcp_init(loop, cast[ptr uv_tcp_t](client))
+    discard uv_tcp_init(server.loop, cast[ptr uv_tcp_t](client))
     discard uv_accept(server, client)
     discard uv_read_start(client, ev_alloc, ev_read)
 
 ######
 # MAIN
 ######
-proc mofuw_init*(port: int = 8080, backlog: int = 128) =
+proc mofuw_run*(port: int = 8080, backlog: int = 128) =
+  var
+    server: uv_tcp_t = cast[uv_tcp_t](uv_tcp_t.new)
+    loop: ptr uv_loop_t = cast[ptr uv_loop_t](uv_loop_t.new)
+    sockaddr: SockAddrIn = cast[SockAddrIn](SockAddrIn.new)
+    fd: uv_os_fd_t
+
   loop = uv_default_loop()
 
   discard uv_ip4_addr("0.0.0.0".cstring, port.cint, sockaddr.addr)
-  discard uv_tcp_init(loop, server.addr)
+  discard uv_tcp_init_ex(loop, server.addr, AF_INET.cuint)
 
   discard uv_tcp_nodelay(server.addr, 1)
   discard uv_tcp_simultaneous_accepts(server.addr, 1)
+
+  discard uv_fileno(cast[ptr uv_handle_t](server.addr), fd.addr)
+
+  fd.SocketHandle.setSockOptInt(cint(SOL_SOCKET), SO_REUSEPORT, 1)
   
   discard uv_tcp_bind(server.addr, cast[ptr SockAddr](sockaddr.addr), 0)
   discard uv_listen(cast[ptr uv_stream_t](addr server), backlog.cint, ev_connection)
 
-proc mofuw_run*(cb: proc(req: ptr http_req, res: ptr http_res)) =
-  return_res = cb
-
   discard uv_run(loop, UV_RUN_DEFAULT)
 
-proc mofuw_GET*(path: string, cb: proc(req: http_req)) =
+proc mofuw_GET*(path: string, cb: proc(req: ptr http_req, res: ptr http_res)) =
   var r: router
 
-  r.method = "GET"
   r.path = path
   r.cb = cb
 
-  ROUTER.add(r)
-
-
-# mofuw_init(8080, 1024)
-# proc handler(req: http_req) =
-#   hoge
-# mofuw_GET("/", handler)
-# mofuw_run((proc() =
-#   hoge
-#))
+  GET_router.add(r)
