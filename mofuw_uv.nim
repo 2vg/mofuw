@@ -89,6 +89,8 @@ var
 
     if r <= 0:
       notFound(response)
+      dealloc(buf.base)
+      return
 
     #request.req_body = cast[ptr cstring](buf.base)[r]
     #request.req_body_len = cast[ptr cstring](buf.base).len - r - 1
