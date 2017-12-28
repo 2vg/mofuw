@@ -6,7 +6,7 @@ type
     w: ptr ev_async
   ]
 
-  handle_t = object
+  handle_t* = object
     fd: cint
     io: ptr ev_io
     router: router
