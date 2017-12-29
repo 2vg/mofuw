@@ -8,7 +8,6 @@ type
 
   handle_t* = object
     fd: cint
-    io: ptr ev_io
     router: router
     req_line: HttpReq
     req_header: array[64, headers]
@@ -76,7 +75,15 @@ proc mofuw_GET*(path: string, cb: proc(handle: ptr handle_t)) =
   ROUTER.GET.add(router)
 
 proc mofuw_send*(handle: ptr handle_t, body: cstring) =
-  discard handle.fd.SocketHandle.send(body, body.len, 0)
+  let s = handle.fd.SocketHandle.send(body, body.len, 0)
+  
+  if s < 0:
+    if osLastError().cint == EAGAIN or osLastError().cint == EWOULDBLOCK:
+      echo "send error: " & $(osLastError()) & ": " & $s & $handle.fd
+    else:
+      echo "send error"
+
+  dealloc(handle)
 
 proc notFound*(handle: ptr handle_t) =
   mofuw_send(handle, "HTTP/1.1 404 Not Found\r\LConnection: Close\r\LContent-Type: text/html\r\LContent-Length: 13\r\L\r\L404 Not Found") 
@@ -85,14 +92,14 @@ proc getMethod*(handle: ptr handle_t):string =
   return ($(handle.req_line.method))[0 .. handle.req_line.methodLen]
 
 proc getPath*(handle: ptr handle_t):string =
-   return ($(handle.req_line.path))[0 .. handle.req_line.pathLen]
+  return ($(handle.req_line.path))[0 .. handle.req_line.pathLen]
 
 proc accept(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint) {.cdecl.} =
   var
     sockAddress: SockaddrIn
     addrLen = sockAddress.sizeof.SockLen
     worker: ptr worker_obj = cast[ptr worker_obj](w)
-    handle: ptr handle_t = cast[ptr handle_t](handle_t.new())
+    handle: ptr handle_t = cast[ptr handle_t](alloc(sizeof(handle_t)))
 
   handle.fd = w.fd.accept4(cast[ptr SockAddr](addr(sockAddress)), addr(addrLen), SOCK_NONBLOCK or SOCK_CLOEXEC)
 
@@ -107,10 +114,10 @@ proc accept(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint) {.cdecl.} =
   if handle.fd < 0:
     echo "error accept: " & $(osLastError()) & ": " & $handle.fd
 
-  if worker.w_id == countProcessors() - 1:
-    worker.w_id = 0
-  else:
-    worker.w_id.inc(1)
+  #if worker.w_id == countProcessors() - 1:
+  #  worker.w_id = 0
+  #else:
+  #  worker.w_id.inc(1)
 
 proc handler(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint): void {.cdecl.} =
 
@@ -120,25 +127,30 @@ proc handler(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint): void {.cdecl.} =
 
   if r == 0:
     #echo "close: " & $(osLastError())
-    w.fd.SocketHandle.close()
+    cast[ptr handle_t](w.data).fd.SocketHandle.close()
     ev_io_stop(loop, w)
+    dealloc(cast[ptr handle_t](w.data))
     dealloc(w)
+
   elif r < 0:
     if osLastError().cint == EAGAIN or osLastError().cint == EWOULDBLOCK:
       #echo "error: " & $(osLastError()) & ": " & $r & $w.fd
       return
     else:
-      w.fd.SocketHandle.close()
+      cast[ptr handle_t](w.data).fd.SocketHandle.close()
       ev_io_stop(loop, w)
+      dealloc(cast[ptr handle_t](w.data))
       dealloc(w)
       #echo "error close: " & $(osLastError()) & ": " & $r & $w.fd
-  else:
+
+  elif r > 0:
     #echo "send: " & $w.fd & ": " & $(osLastError())
 
     let r = mp_req(incoming[0].addr, cast[ptr handle_t](w.data).req_line, cast[ptr handle_t](w.data).header_addr)
 
     if r <= 0:
       notFound(cast[ptr handle_t](w.data))
+      dealloc(cast[ptr handle_t](w.data))
       return
 
     case getMethod(cast[ptr handle_t](w.data))
@@ -153,14 +165,16 @@ proc handler(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint): void {.cdecl.} =
             notFound(cast[ptr handle_t](w.data))
     else:
       notFound(cast[ptr handle_t](w.data))
-    #discard w.fd.SocketHandle.send(addr(cast[ptr handle_t](w.data).body[0]), cast[ptr handle_t](w.data).body.len, 0)
 
 proc client_set(loop: ptr ev_loop_t, w: ptr ev_async, revents: cint): void {.cdecl.} =
-  cast[ptr handle_t](w.data).io = cast[ptr ev_io](alloc(sizeof(ev_io)))
-  cast[ptr handle_t](w.data).io.data = w.data
+  var
+    client_watcher = cast[ptr ev_io](alloc(sizeof(ev_io)))
 
-  ev_io_init(cast[ptr handle_t](w.data).io, handler, cast[ptr handle_t](w.data).fd, EV_READ)
-  ev_io_start(loop, cast[ptr handle_t](w.data).io)
+  client_watcher.data = w.data
+
+  ev_io_init(client_watcher, handler, cast[ptr handle_t](w.data).fd, EV_READ)
+
+  ev_io_start(loop, client_watcher)
 
 proc ev_timer_cb(loop: ptr ev_loop_t, w: ptr ev_timer, revents: cint): void {.cdecl.} =
   ev_timer_again(loop, w)
@@ -223,3 +237,18 @@ proc mofuw_run*(port: int = 8080, backlog: int = SOMAXCONN) =
 #setMinPoolSize(countProcessors())
 #setMaxPoolSize(countProcessors())
 #joinThreads(server_threads)
+
+when isMainModule:
+  var
+    body =
+      "HTTP/1.1 200 OK" & "\r\L" &
+      "Connection: keep-alive" & "\r\L" &
+      "Content-Length: " & $(11) & "\r\L" &
+      "Content-Type: text/html; charset=utf-8" & "\r\L" & "\r\L" &
+      "Hello World"
+
+  mofuw_GET("/", (proc(handle: ptr handle_t) =
+    handle.mofuw_send(body)
+  ))
+
+  mofuw_run(8080)
