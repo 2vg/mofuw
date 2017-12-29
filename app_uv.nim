@@ -1,4 +1,4 @@
-import mofuw
+import mofuw_uv
 import osproc
 import posix
 import os

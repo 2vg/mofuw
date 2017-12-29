@@ -532,7 +532,7 @@ proc ev_async_init*(ev: ptr ev_async, cb: ev_async_cb): void {.cdecl, inline.}=
 proc ev_feed_event*(loop: ptr ev_loop_t, w: pointer, revents: cint): void
   {.importc, cdecl, dynlib: libev.}
 
-proc ev_feed_fd_event*(loop: ptr ev_loop_t, w: pointer, revents: cint): void
+proc ev_feed_fd_event*(loop: ptr ev_loop_t, fd: cint, revents: cint): void
   {.importc, cdecl, dynlib: libev.}
 
 proc ev_feed_signal*(signum: cint): void

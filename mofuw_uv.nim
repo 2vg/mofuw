@@ -9,7 +9,7 @@ const
 
   maxBodySize = 1 * mByte
 
-  not_found_body = "HTTP/1.1 " & ($$HTTP11_404) & "\r\L" &
+  not_found_body = HTTP404 & "\r\L" &
                    "Connection: keep-alive" & "\r\L" &
                    "Content-Length: 39"  & "\r\L" &
                    "Content-Type: text/html; charset=utf-8" & "\r\L" & "\r\L" &
@@ -89,8 +89,6 @@ var
 
     if r <= 0:
       notFound(response)
-      dealloc(buf.base)
-      return
 
     #request.req_body = cast[ptr cstring](buf.base)[r]
     #request.req_body_len = cast[ptr cstring](buf.base).len - r - 1

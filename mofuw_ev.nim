@@ -1,4 +1,5 @@
 import net, nativesockets, osproc, os, lib/nimev, lib/mofuparser, lib/httputils
+from posix import EAGAIN, EWOULDBLOCK
 
 type
   worker_t = tuple[
@@ -76,14 +77,14 @@ proc mofuw_GET*(path: string, cb: proc(handle: ptr handle_t)) =
 
 proc mofuw_send*(handle: ptr handle_t, body: cstring) =
   let s = handle.fd.SocketHandle.send(body, body.len, 0)
-  
+
   if s < 0:
     if osLastError().cint == EAGAIN or osLastError().cint == EWOULDBLOCK:
       echo "send error: " & $(osLastError()) & ": " & $s & $handle.fd
     else:
-      echo "send error"
-
-  dealloc(handle)
+      echo "send error: " & $(osLastError()) & ": " & $s
+  elif not s == body.len:
+    echo "not all send: " & $s
 
 proc notFound*(handle: ptr handle_t) =
   mofuw_send(handle, "HTTP/1.1 404 Not Found\r\LConnection: Close\r\LContent-Type: text/html\r\LContent-Length: 13\r\L\r\L404 Not Found") 
@@ -114,61 +115,61 @@ proc accept(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint) {.cdecl.} =
   if handle.fd < 0:
     echo "error accept: " & $(osLastError()) & ": " & $handle.fd
 
-  #if worker.w_id == countProcessors() - 1:
-  #  worker.w_id = 0
-  #else:
-  #  worker.w_id.inc(1)
+  if worker.w_id == countProcessors() - 1:
+    worker.w_id = 0
+  else:
+    worker.w_id.inc(1)
 
 proc handler(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint): void {.cdecl.} =
-
   var
     incoming: array[1024, char]
-  let r = w.fd.SocketHandle.recv(addr(incoming), incoming.len, 0).cint
 
-  if r == 0:
-    #echo "close: " & $(osLastError())
-    cast[ptr handle_t](w.data).fd.SocketHandle.close()
-    ev_io_stop(loop, w)
-    dealloc(cast[ptr handle_t](w.data))
-    dealloc(w)
+  while true:
+    let r = w.fd.SocketHandle.recv(addr(incoming), incoming.len, 0).cint
 
-  elif r < 0:
-    if osLastError().cint == EAGAIN or osLastError().cint == EWOULDBLOCK:
-      #echo "error: " & $(osLastError()) & ": " & $r & $w.fd
-      return
-    else:
-      cast[ptr handle_t](w.data).fd.SocketHandle.close()
+    if r == 0:
+      #echo "close: " & $(osLastError())
       ev_io_stop(loop, w)
-      dealloc(cast[ptr handle_t](w.data))
+      w.fd.SocketHandle.close()
+      dealloc(w.data)
       dealloc(w)
-      #echo "error close: " & $(osLastError()) & ": " & $r & $w.fd
-
-  elif r > 0:
-    #echo "send: " & $w.fd & ": " & $(osLastError())
-
-    let r = mp_req(incoming[0].addr, cast[ptr handle_t](w.data).req_line, cast[ptr handle_t](w.data).header_addr)
-
-    if r <= 0:
-      notFound(cast[ptr handle_t](w.data))
-      dealloc(cast[ptr handle_t](w.data))
       return
 
-    case getMethod(cast[ptr handle_t](w.data))
-    of "GET":
-      if cast[ptr handle_t](w.data).router.GET.len == 0:
-        notFound(cast[ptr handle_t](w.data))
+    if r < 0:
+      if osLastError().cint == EAGAIN or osLastError().cint == EWOULDBLOCK:
+        #echo "all read: " & $(osLastError()) & ": " & $r & $w.fd
+        break
       else:
-        for value in cast[ptr handle_t](w.data).router.GET:
-          if getPath(cast[ptr handle_t](w.data)) == value.path:
-            value.cb(cast[ptr handle_t](w.data))
-          else:
-            notFound(cast[ptr handle_t](w.data))
-    else:
+        #echo "error: " & $(osLastError()) & ": " & $r & $w.fd
+        ev_io_stop(loop, w)
+        w.fd.SocketHandle.close()
+        dealloc(w.data)
+        dealloc(w)
+        return
+
+  let r = mp_req(incoming[0].addr, cast[ptr handle_t](w.data).req_line, cast[ptr handle_t](w.data).header_addr)
+
+  if r <= 0:
+    notFound(cast[ptr handle_t](w.data))
+    return
+
+  case getMethod(cast[ptr handle_t](w.data))
+  of "GET":
+    if cast[ptr handle_t](w.data).router.GET.len == 0:
       notFound(cast[ptr handle_t](w.data))
+    else:
+      for value in cast[ptr handle_t](w.data).router.GET:
+        if getPath(cast[ptr handle_t](w.data)) == value.path:
+          value.cb(cast[ptr handle_t](w.data))
+        else:
+          notFound(cast[ptr handle_t](w.data))
+  else:
+    notFound(cast[ptr handle_t](w.data))
+
+  dealloc(w.data)
 
 proc client_set(loop: ptr ev_loop_t, w: ptr ev_async, revents: cint): void {.cdecl.} =
-  var
-    client_watcher = cast[ptr ev_io](alloc(sizeof(ev_io)))
+  var client_watcher = cast[ptr ev_io](alloc(sizeof(ev_io)))
 
   client_watcher.data = w.data
 
@@ -214,7 +215,6 @@ proc server_loop(loop: ptr ev_loop_t, worker_arr: seq[ptr ev_loop_t], r: router,
   ev_io_init(watcher.io.addr, accept, server, EV_READ)
   ev_io_start(loop, watcher.io.addr)
 
-  echo "main"
   discard ev_run(loop, 0)
   echo "server close"
   server.SocketHandle.close()
