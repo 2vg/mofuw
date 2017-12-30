@@ -102,7 +102,7 @@ type
     data* {.importc.}: pointer
     `type`* {.importc.} : uv_req_type
 
-  uv_req_type = enum
+  uv_req_type* = enum
     UV_UNKNOWN_REQ = 0,
     UV_REQ,
     UV_CONNECT,

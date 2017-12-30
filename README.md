@@ -9,7 +9,7 @@ but probably, will not to change API usage
 ### Featuer
 - high-performance
 - low used memory
-- ~~used backend is libuv, so Asynchronous I/O and Non-Blocking I/O~~
+- used backend is libuv, so Asynchronous I/O and Non-Blocking I/O
 - my parser is implement like [picohttpparser](https://github.com/h2o/picohttpparser), so Zero-Copy, ultra fast parsing... yeah, fast may.
 - Easy API, create Web Application, create an extended Web server
 - Multi-Core support, see app.nim
@@ -20,7 +20,7 @@ because using libuv, and using fast parser.
 about my parser, check [mofuparser](https://github.com/2vg/mofuparser)
 
 ~~but, i want to use libev... because more faster than libuv...~~
-this is working now !
+this is developping now !
 
 if i will made Asynchronous library, i will may replace libuv to libev
 

@@ -79,12 +79,10 @@ proc mofuw_send*(handle: ptr handle_t, body: cstring) =
   let s = handle.fd.SocketHandle.send(body, body.len, 0)
 
   if s < 0:
-    if osLastError().cint == EAGAIN or osLastError().cint == EWOULDBLOCK:
-      echo "send error: " & $(osLastError()) & ": " & $s & $handle.fd
+    if osLastError().cint in {EWOULDBLOCK, EAGAIN}:
+      echo "again send error: " & $(osLastError()) & ": " & $s & $(handle.fd)
     else:
-      echo "send error: " & $(osLastError()) & ": " & $s
-  elif not s == body.len:
-    echo "not all send: " & $s
+      echo "send error: " & $(osLastError()) & ": " & $s & $(handle.fd)
 
 proc notFound*(handle: ptr handle_t) =
   mofuw_send(handle, "HTTP/1.1 404 Not Found\r\LConnection: Close\r\LContent-Type: text/html\r\LContent-Length: 13\r\L\r\L404 Not Found") 
@@ -104,6 +102,11 @@ proc accept(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint) {.cdecl.} =
 
   handle.fd = w.fd.accept4(cast[ptr SockAddr](addr(sockAddress)), addr(addrLen), SOCK_NONBLOCK or SOCK_CLOEXEC)
 
+  if handle.fd < 0:
+    echo "error accept: " & $(osLastError()) & ": " & $handle.fd
+    dealloc(handle)
+    return
+
   handle.router = worker.router
 
   handle.header_addr = handle.req_header.addr
@@ -111,9 +114,6 @@ proc accept(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint) {.cdecl.} =
   worker.async[worker.w_id].data = handle
 
   ev_async_send(worker.arr[worker.w_id], worker.async[worker.w_id])
-
-  if handle.fd < 0:
-    echo "error accept: " & $(osLastError()) & ": " & $handle.fd
 
   if worker.w_id == countProcessors() - 1:
     worker.w_id = 0
@@ -128,7 +128,7 @@ proc handler(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint): void {.cdecl.} =
     let r = w.fd.SocketHandle.recv(addr(incoming), incoming.len, 0).cint
 
     if r == 0:
-      #echo "close: " & $(osLastError())
+      echo "close: " & $(osLastError())
       ev_io_stop(loop, w)
       w.fd.SocketHandle.close()
       dealloc(w.data)
@@ -136,11 +136,11 @@ proc handler(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint): void {.cdecl.} =
       return
 
     if r < 0:
-      if osLastError().cint == EAGAIN or osLastError().cint == EWOULDBLOCK:
-        #echo "all read: " & $(osLastError()) & ": " & $r & $w.fd
+      if osLastError().cint in {EWOULDBLOCK, EAGAIN}:
+        echo "all read: " & $(osLastError()) & ": " & $r & $w.fd
         break
       else:
-        #echo "error: " & $(osLastError()) & ": " & $r & $w.fd
+        echo "error: " & $(osLastError()) & ": " & $r & $w.fd
         ev_io_stop(loop, w)
         w.fd.SocketHandle.close()
         dealloc(w.data)
@@ -163,10 +163,10 @@ proc handler(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint): void {.cdecl.} =
           value.cb(cast[ptr handle_t](w.data))
         else:
           notFound(cast[ptr handle_t](w.data))
+    dealloc(w.data)
   else:
     notFound(cast[ptr handle_t](w.data))
-
-  dealloc(w.data)
+    dealloc(w.data)
 
 proc client_set(loop: ptr ev_loop_t, w: ptr ev_async, revents: cint): void {.cdecl.} =
   var client_watcher = cast[ptr ev_io](alloc(sizeof(ev_io)))
