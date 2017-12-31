@@ -1,6 +1,6 @@
 import asyncnet, asyncdispatch, nativesockets, lib/mofuparser
 
-proc P(value: string, length: int): string {.inline.}=
+proc P(value: string, length: int): string =
   return value[0 .. length]
 #[
 proc makeResp(body: string)
@@ -33,10 +33,7 @@ proc client_cb(client: AsyncFD) {.async.} =
       closeSocket(client)
       break
     else:
-      if mp_req(rc[0].addr, htreq, hdaddr) == 0:
-        case P($htreq.reqmethod, htreq.reqmethodlen):
-        of "GET":
-          asyncCheck client.send(body[0].addr, body.len)
+      asyncCheck client.send(body[0].addr, body.len)
 
 proc serve() {.async.} =
   var server = newAsyncSocket()
@@ -49,7 +46,6 @@ proc serve() {.async.} =
 
   while true:
     let client = await servfd.accept()
-    client.SocketHandle.setSockOptInt(cint(IPPROTO_TCP), TCP_NODELAY, 1)
     asyncCheck client_cb(client)
 
 asyncCheck serve()

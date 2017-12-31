@@ -2,6 +2,7 @@ import lib/nimuv
 import lib/mofuparser
 import lib/httputils
 import nativesockets
+import osproc
 
 const
   kByte* = 1024
@@ -30,12 +31,21 @@ type
   http_res* = object
     handle*: ptr uv_handle_t
     fd*: cint
-    write_res*: ptr uv_write_t
-    buf*: uv_buf_t
+    res*: ptr uv_write_t
+    body*: uv_buf_t
+
+  router = object
+    GET: seq[router_t]
+    POST: seq[router_t]
     
-  router* = object
+  router_t* = object
     path*: string
     cb*: proc(req: ptr http_req, res: ptr http_res)
+
+  thread_t = tuple[
+    port: int,
+    backlog: int
+  ]
 
 proc getMethod*(req: ptr http_req): string {.inline.} =
   return ($(req.req_line.method))[0 .. req.req_line.methodLen]
@@ -44,32 +54,34 @@ proc getPath*(req: ptr http_req): string {.inline.} =
   return ($(req.req_line.path))[0 .. req.req_line.pathLen]
 
 var
-  GET_router: seq[router] = @[]
+  ROUTER {.threadvar.}: router
 
-proc ev_close(handle: ptr uv_handle_t) {.cdecl.} =
+ROUTER.GET = @[]
+
+proc after_close(handle: ptr uv_handle_t) {.cdecl.} =
   return
 
-proc ev_destroy_write(req: ptr uv_write_t, status: cint) {.cdecl.} =
+proc free_response(req: ptr uv_write_t, status: cint) {.cdecl.} =
   dealloc(req)
 
-proc ev_alloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} = 
+proc buf_alloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} = 
   buf[].base = alloc(size)
   buf[].len = size
 
 proc mofuw_send*(res: ptr http_res, body: cstring) =
-  res.buf.base = body
-  res.buf.len = body.len
+  res.body.base = body
+  res.body.len = body.len
 
-  discard uv_write(res.write_res, cast[ptr uv_stream_t](res.handle), res.buf.addr, 1, ev_destroy_write)
+  discard uv_write(res.res, cast[ptr uv_stream_t](res.handle), res.body.addr, 1, free_response)
 
 proc notFound*(res: ptr http_res) =
   mofuw_send(res, not_found_body)
 
-proc ev_read(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
+proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
   if nread == -4095:
     dealloc(stream)
     dealloc(buf.base)
-    uv_close(cast[ptr uv_handle_t](stream), ev_close)
+    uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
   elif nread < 0:
     dealloc(stream)
@@ -80,15 +92,11 @@ proc ev_read(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
     request: ptr http_req = cast[ptr http_req](http_req.new)
     response: ptr http_res = cast[ptr http_res](http_res.new)
 
-  stream.data = request
-
-  request.handle = cast[ptr uv_handle_t](stream)
-
-  response.handle = request.handle
+  response.handle = cast[ptr uv_handle_t](stream)
 
   request.req_header_addr = request.req_header.addr
 
-  response.write_res = cast[ptr uv_write_t](alloc(sizeof(uv_write_t)))
+  response.res = cast[ptr uv_write_t](alloc(sizeof(uv_write_t)))
 
   let r = mp_req(cast[ptr char](buf.base), request.req_line, request.req_header_addr)
 
@@ -103,10 +111,10 @@ proc ev_read(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   case getMethod(request)
   of "GET":
-    if GET_router.len == 0:
+    if ROUTER.GET.len == 0:
       notFound(response)
     else:
-      for value in GET_router:
+      for value in ROUTER.GET:
         if getPath(request) == value.path:
           value.cb(request, response)
         else:
@@ -116,14 +124,14 @@ proc ev_read(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   dealloc(buf.base)
 
-proc ev_connection(server: ptr uv_stream_t, status: cint) {.cdecl.} =
+proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
   if not status == 0: echo "error: ", uv_err_name(status), uv_strerror(status), "\n"
 
   var client = cast[ptr uv_stream_t](alloc(sizeof(uv_tcp_t)))
 
   discard uv_tcp_init(server.loop, cast[ptr uv_tcp_t](client))
   discard uv_accept(server, client)
-  discard uv_read_start(client, ev_alloc, ev_read)
+  discard uv_read_start(client, buf_alloc, read_cb)
 
 ######
 # MAIN
@@ -146,17 +154,17 @@ proc mofuw_run*(port: int = 8080, backlog: int = 128) =
   discard uv_fileno(cast[ptr uv_handle_t](server), fd.addr)
 
   fd.SocketHandle.setSockOptInt(cint(SOL_SOCKET), SO_REUSEPORT, 1)
-  
+
   discard uv_tcp_bind(server, cast[ptr SockAddr](sockaddr.addr), 0)
 
-  discard uv_listen(cast[ptr uv_stream_t](server), backlog.cint, ev_connection)
+  discard uv_listen(cast[ptr uv_stream_t](server), backlog.cint, accept_cb)
 
   discard uv_run(loop, UV_RUN_DEFAULT)
 
 proc mofuw_GET*(path: string, cb: proc(req: ptr http_req, res: ptr http_res)) =
-  var r: router
+  var r: router_t
 
   r.path = path
   r.cb = cb
 
-  GET_router.add(r)
+  ROUTER.GET.add(r)

@@ -1,4 +1,4 @@
-import net, nativesockets, osproc, os, lib/nimev, lib/mofuparser, lib/httputils
+import net, nativesockets, osproc, os, lib/nimev, lib/mofuparser, lib/httputils, asyncdispatch
 from posix import EAGAIN, EWOULDBLOCK
 
 type

@@ -13,8 +13,18 @@ var
     "Content-Type: text/plain; charset=utf-8" & "\r\L" & "\r\L" &
     "Hello World"
 
-mofuw_GET("/", proc(req: ptr http_req, res: ptr http_res) =
-  res.mofuw_send(body)
-)
+proc th() =
+  mofuw_GET("/", proc(req: ptr http_req, res: ptr http_res) =
+    res.mofuw_send(body)
+  )
 
-mofuw_run(port, 1024)
+  mofuw_run(port, 1024)
+
+for i in 0 ..< countProcessors():
+  let pid = fork()
+  if pid == 0:
+    th()
+    quit(0)
+
+while true:
+  sleep(10000)
