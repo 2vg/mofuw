@@ -28,7 +28,7 @@ type
     res*: ptr uv_write_t
     body*: uv_buf_t
 
-  router = ref object of RootObj
+  router = ref object
     GET: seq[router_t]
     POST: seq[router_t]
 
@@ -73,7 +73,9 @@ proc mofuw_send*(res: ptr http_res, body: cstring) =
   res.body.base = body
   res.body.len = body.len
 
-  discard uv_write(res.res, cast[ptr uv_stream_t](res.handle), res.body.addr, 1, free_response)
+  if not uv_write(res.res, cast[ptr uv_stream_t](res.handle), res.body.addr, 1, free_response) == 0:
+    dealloc(res.res)
+    return
 
 proc notFound*(res: ptr http_res) =
   mofuw_send(res, notFound())
@@ -87,6 +89,7 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
   elif nread < 0:
     dealloc(stream)
     dealloc(buf.base)
+    uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
 
   var
@@ -99,12 +102,11 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   response.res = cast[ptr uv_write_t](alloc(sizeof(uv_write_t)))
 
-  let r = mp_req(cast[ptr char](buf.base), request.req_line, request.req_header_addr)
-
-  if r <= 0:
+  if mp_req(cast[ptr char](buf.base), request.req_line, request.req_header_addr) <= 0:
     notFound(response)
     dealloc(stream)
     dealloc(buf.base)
+    uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
 
   #request.req_body = cast[ptr cstring](buf.base)[r]
@@ -118,8 +120,9 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
       for value in getRouter().GET:
         if getPath(request) == value.path:
           value.cb(request, response)
-        else:
-          notFound(response)
+          dealloc(buf.base)
+          return
+      notFound(response)
   else:
     notFound(response)
 
@@ -130,9 +133,14 @@ proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
 
   var client = cast[ptr uv_stream_t](alloc(sizeof(uv_tcp_t)))
 
-  discard uv_tcp_init(server.loop, cast[ptr uv_tcp_t](client))
-  discard uv_accept(server, client)
-  discard uv_read_start(client, buf_alloc, read_cb)
+  if not uv_tcp_init(server.loop, cast[ptr uv_tcp_t](client)) == 0:
+    return
+
+  if not uv_accept(server, client) == 0:
+    return
+
+  if not uv_read_start(client, buf_alloc, read_cb) == 0:
+    return
 
 proc mofuw_init*(t: tuple[port: int, backlog: int, router: router]) =
   var
@@ -164,14 +172,7 @@ proc mofuw_init*(t: tuple[port: int, backlog: int, router: router]) =
   discard uv_run(loop, UV_RUN_DEFAULT)
 
 proc mofuw_GET*(path: string, cb: proc(req: ptr http_req, res: ptr http_res)) =
-  var
-    router = getRouter()
-    r: router_t
-
-  r.path = path
-  r.cb = cb
-
-  router.GET.add(r)
+  getRouter().GET.add(router_t(path: path, cb: cb))
 
 proc mofuw_run*(port: int = 8080, backlog: int = 128) =
   var th: Thread[tuple[port: int, backlog: int, router: router]]
@@ -182,7 +183,7 @@ proc mofuw_run*(port: int = 8080, backlog: int = 128) =
 
   for i in 0 ..< countProcessors():
     createThread[tuple[port: int, backlog: int, router: router]](
-      th, mofuw_init, (port, backlog, getRouter()
-    ))
+      th, mofuw_init, (port, backlog, getRouter())
+    )
 
   joinThread(th)

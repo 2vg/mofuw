@@ -160,8 +160,8 @@ proc handler(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint): void {.cdecl.} =
       for value in cast[ptr handle_t](w.data).router.GET:
         if getPath(cast[ptr handle_t](w.data)) == value.path:
           value.cb(cast[ptr handle_t](w.data))
-        else:
-          notFound(cast[ptr handle_t](w.data))
+          break
+      notFound(cast[ptr handle_t](w.data))
     dealloc(w.data)
   else:
     notFound(cast[ptr handle_t](w.data))
