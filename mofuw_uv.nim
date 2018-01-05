@@ -10,12 +10,6 @@ const
 
   maxBodySize = 1 * mByte
 
-  not_found_body = HTTP404 & "\r\L" &
-                   "Connection: keep-alive" & "\r\L" &
-                   "Content-Length: 39"  & "\r\L" &
-                   "Content-Type: text/html; charset=utf-8" & "\r\L" & "\r\L" &
-                   "<center><h1>404 Not Found.</h1><center>"
-
 type
   #mofuw_t = object
   #  server: uv_tcp_t
@@ -34,18 +28,13 @@ type
     res*: ptr uv_write_t
     body*: uv_buf_t
 
-  router = object
+  router = ref object of RootObj
     GET: seq[router_t]
     POST: seq[router_t]
-    
+
   router_t* = object
     path*: string
     cb*: proc(req: ptr http_req, res: ptr http_res)
-
-  thread_t = tuple[
-    port: int,
-    backlog: int
-  ]
 
 proc getMethod*(req: ptr http_req): string {.inline.} =
   return ($(req.req_line.method))[0 .. req.req_line.methodLen]
@@ -53,10 +42,22 @@ proc getMethod*(req: ptr http_req): string {.inline.} =
 proc getPath*(req: ptr http_req): string {.inline.} =
   return ($(req.req_line.path))[0 .. req.req_line.pathLen]
 
-var
-  ROUTER {.threadvar.}: router
+# Global Router variable
+var ROUTER {.threadvar.}: router
 
-ROUTER.GET = @[]
+proc newRouter(): router =
+  result = router()
+
+proc setRouter(r: router) =
+  ROUTER = r
+
+proc getRouter(): router =
+  if ROUTER.isNil:
+    setRouter(newRouter())
+    ROUTER.GET = @[]
+    ROUTER.POST = @[]
+
+  result = ROUTER
 
 proc after_close(handle: ptr uv_handle_t) {.cdecl.} =
   return
@@ -75,7 +76,7 @@ proc mofuw_send*(res: ptr http_res, body: cstring) =
   discard uv_write(res.res, cast[ptr uv_stream_t](res.handle), res.body.addr, 1, free_response)
 
 proc notFound*(res: ptr http_res) =
-  mofuw_send(res, not_found_body)
+  mofuw_send(res, notFound())
 
 proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
   if nread == -4095:
@@ -111,10 +112,10 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   case getMethod(request)
   of "GET":
-    if ROUTER.GET.len == 0:
+    if getRouter().GET.len == 0:
       notFound(response)
     else:
-      for value in ROUTER.GET:
+      for value in getRouter().GET:
         if getPath(request) == value.path:
           value.cb(request, response)
         else:
@@ -133,17 +134,18 @@ proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
   discard uv_accept(server, client)
   discard uv_read_start(client, buf_alloc, read_cb)
 
-######
-# MAIN
-######
-proc mofuw_run*(port: int = 8080, backlog: int = 128) =
+proc mofuw_init*(t: tuple[port: int, backlog: int, router: router]) =
   var
-    server: ptr uv_tcp_t = cast[ptr uv_tcp_t](uv_tcp_t.new())
-    loop: ptr uv_loop_t = uv_default_loop()
+    server: ptr uv_tcp_t = cast[ptr uv_tcp_t](alloc(sizeof(uv_tcp_t)))
+    loop: ptr uv_loop_t = cast[ptr uv_loop_t](alloc(sizeof(uv_loop_t)))
     sockaddr: SockAddrIn
     fd: uv_os_fd_t
 
-  discard uv_ip4_addr("0.0.0.0".cstring, port.cint, sockaddr.addr)
+  ROUTER = t.router
+
+  discard uv_loop_init(loop)
+
+  discard uv_ip4_addr("0.0.0.0".cstring, t.port.cint, sockaddr.addr)
 
   discard uv_tcp_init_ex(loop, server, AF_INET.cuint)
 
@@ -157,14 +159,30 @@ proc mofuw_run*(port: int = 8080, backlog: int = 128) =
 
   discard uv_tcp_bind(server, cast[ptr SockAddr](sockaddr.addr), 0)
 
-  discard uv_listen(cast[ptr uv_stream_t](server), backlog.cint, accept_cb)
+  discard uv_listen(cast[ptr uv_stream_t](server), t.backlog.cint, accept_cb)
 
   discard uv_run(loop, UV_RUN_DEFAULT)
 
 proc mofuw_GET*(path: string, cb: proc(req: ptr http_req, res: ptr http_res)) =
-  var r: router_t
+  var
+    router = getRouter()
+    r: router_t
 
   r.path = path
   r.cb = cb
 
-  ROUTER.GET.add(r)
+  router.GET.add(r)
+
+proc mofuw_run*(port: int = 8080, backlog: int = 128) =
+  var th: Thread[tuple[port: int, backlog: int, router: router]]
+
+  if getRouter().GET.len == 0 and
+     getRouter().POST.len == 0:
+    raise newException(Exception, "nothing router.")
+
+  for i in 0 ..< countProcessors():
+    createThread[tuple[port: int, backlog: int, router: router]](
+      th, mofuw_init, (port, backlog, getRouter()
+    ))
+
+  joinThread(th)

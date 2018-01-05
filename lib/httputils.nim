@@ -59,4 +59,37 @@ const
   HTTP509* = "HTTP/1.1 509 Bandwidth Limit Exceeded" & "\r\L"
   HTTP510* = "HTTP/1.1 510 Not Extended" & "\r\L"
 
-  
+proc makeRespNoBody*(statusLine: string): string {.inline.}=
+  result = ""
+  result.add(statusLine)
+  result.add("Connection: ")
+  result.add("keep-alive")
+  result.add("\r\L")
+
+proc makeResp*(statusLine: string, mime: string, body: string, charset: string = "utf-8"): string {.inline.}=
+  result = makeRespNoBody(statusLine)
+  result.add("Content-Type: ")
+  result.add(mime)
+  result.add("; charset=")
+  result.add(charset)
+  result.add("\r\L")
+  result.add("Content-Length: ")
+  result.add(body.len)
+  result.add("\r\L")
+  result.add("\r\L")
+  result.add(body)
+
+proc addHeader*(body: string, name: string, value: string): string {.inline.}=
+  result = ""
+  result.add(body)
+  result.add(name)
+  result.add(": ")
+  result.add(value)
+  result.add("\r\L")
+
+proc notFound*(): string {.inline.}=
+  result = makeResp(HTTP404, "text/html", "<center><h1>404 Not Found.</h1><center>")
+
+proc redirect*(URL: string): string {.inline.}=
+  result = addHeader(makeRespNoBody(HTTP301), "Location", URL)
+  result.add("\r\L")

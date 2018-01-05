@@ -137,7 +137,6 @@ proc handler(loop: ptr ev_loop_t, w: ptr ev_io, revents: cint): void {.cdecl.} =
 
     if r < 0:
       if osLastError().cint in {EWOULDBLOCK, EAGAIN}:
-        echo "all read: " & $(osLastError()) & ": " & $r & $w.fd
         break
       else:
         echo "error: " & $(osLastError()) & ": " & $r & $w.fd
