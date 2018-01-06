@@ -15,26 +15,26 @@ type
   #  server: uv_tcp_t
 
   http_req* = object
-    handle*: ptr uv_handle_t
-    req_line*: HttpReq
-    req_header*: array[64, headers]
-    req_header_addr*: ptr http_req.req_header
-    # req_body: array[maxBodySize, char]
-    # req_body_len: int
+    handle: ptr uv_handle_t
+    req_line: HttpReq
+    req_header: array[64, headers]
+    req_header_addr: ptr http_req.req_header
+    req_body: cstring
+    req_body_len: int
 
   http_res* = object
-    handle*: ptr uv_handle_t
-    fd*: cint
-    res*: ptr uv_write_t
-    body*: uv_buf_t
+    handle: ptr uv_handle_t
+    fd: cint
+    res: ptr uv_write_t
+    body: uv_buf_t
 
   router = ref object
     GET: seq[router_t]
     POST: seq[router_t]
 
-  router_t* = object
-    path*: string
-    cb*: proc(req: ptr http_req, res: ptr http_res)
+  router_t = object
+    path: string
+    cb: proc(req: ptr http_req, res: ptr http_res)
 
 proc getMethod*(req: ptr http_req): string {.inline.} =
   return ($(req.req_line.method))[0 .. req.req_line.methodLen]
@@ -46,7 +46,10 @@ proc getPath*(req: ptr http_req): string {.inline.} =
 var ROUTER {.threadvar.}: router
 
 proc newRouter(): router =
-  result = router()
+  result = router(
+    GET: @[],
+    POST: @[]
+  )
 
 proc setRouter(r: router) =
   ROUTER = r
@@ -54,8 +57,6 @@ proc setRouter(r: router) =
 proc getRouter(): router =
   if ROUTER.isNil:
     setRouter(newRouter())
-    ROUTER.GET = @[]
-    ROUTER.POST = @[]
 
   result = ROUTER
 
@@ -102,15 +103,22 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   response.res = cast[ptr uv_write_t](alloc(sizeof(uv_write_t)))
 
-  if mp_req(cast[ptr char](buf.base), request.req_line, request.req_header_addr) <= 0:
+  let r = mp_req(cast[ptr char](buf.base), request.req_line, request.req_header_addr)
+
+  if r <= 0:
     notFound(response)
     dealloc(stream)
     dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
 
-  #request.req_body = cast[ptr cstring](buf.base)[r]
-  #request.req_body_len = cast[ptr cstring](buf.base).len - r - 1
+  request.req_body = cast[ptr char]((cast[int](buf.base)) + r)
+  request.req_body_len = request.req_body.len
+
+  if request.req_body_len > maxBodySize:
+    mofuw_send(response, bodyTooLarge())
+    dealloc(buf.base)
+    return
 
   case getMethod(request)
   of "GET":
@@ -123,13 +131,24 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
           dealloc(buf.base)
           return
       notFound(response)
+  of "POST":
+    if getRouter().POST.len == 0:
+      notFound(response)
+    else:
+      for value in getRouter().POST:
+        if getPath(request) == value.path:
+          value.cb(request, response)
+          dealloc(buf.base)
+          return
+      notFound(response)
   else:
     notFound(response)
 
   dealloc(buf.base)
 
 proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
-  if not status == 0: echo "error: ", uv_err_name(status), uv_strerror(status), "\n"
+  if not status == 0:
+    echo "error: ", uv_err_name(status), uv_strerror(status), "\n"
 
   var client = cast[ptr uv_stream_t](alloc(sizeof(uv_tcp_t)))
 

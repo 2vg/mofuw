@@ -1,18 +1,25 @@
-import selectors, net, nativesockets, os, httpcore, asyncdispatch
+import selectors, net, nativesockets, os
+
+import lib/httputils
+import lib/mofuparser
 
 from osproc import countProcessors
 from posix import EAGAIN, EWOULDBLOCK
 
 type
-  fd_Type = enum
+  fd_type = enum
     SERVER,
-    CLIENT
+    CLIENT,
+    ASYNC
 
   Data = object
     `type`: fd_type
     buf: string
     queue: int
     sent: int
+    fd: int
+    res: pointer
+    cb: proc(fd: int, res: pointer)
 
 var
   # import TCP_NODELAY for disable Nagle algorithm
@@ -27,12 +34,15 @@ var
 proc accept4(a1: cint, a2: ptr SockAddr, a3: ptr Socklen, flags: cint): cint
   {.importc, header: "<sys/socket.h>".}
 
-proc newData(fd: fd_type): Data =
+proc newData(typ: fd_type, fd: int = 0, res: pointer = nil, cb: proc(fd: int, res: pointer) = nil): Data =
   Data(
-    type: fd,
+    type: typ,
     buf: "",
     queue: 0,
-    sent: 0
+    sent: 0,
+    fd: fd,
+    res: res,
+    cb: cb
   )
 
 proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
@@ -58,40 +68,81 @@ proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
 
   return server.getFd()
 
-proc eventHandler(fd: AsyncFD) {.async.}=
-  var body: string =
-    "HTTP/1.1 200 OK" & "\r\L" &
-    "Connection: keep-alive" & "\r\L" &
-    "Content-Length: " & $(11) & "\r\L" &
-    "Content-Type: text/plain; charset=utf-8" & "\r\L" & "\r\L" &
-    "Hello World"
+proc eventHandler(selector: Selector[Data], 
+                  ev: array[64, ReadyKey],
+                  cnt: int,) =
 
-  while true:
-    let r = await recv(fd, 256)
+  for i in 0 ..< cnt:
+    let fd = ev[i].fd
+    var data: ptr Data = addr(selector.getData(fd))
 
-    if r == "":
-      closeSocket(fd)
-      return
+    case data.type
+    of SERVER:
+      var
+        sockAddress: Sockaddr_in
+        addrLen = SockLen(sizeof(sockAddress))
+
+      let client = accept4(fd.cint, cast[ptr SockAddr](addr(sockAddress)), addr(addrLen), SOCK_NONBLOCK or SOCK_CLOEXEC)
+
+      if client < 0:
+        return
+
+      selector.registerHandle(client.SocketHandle, {Event.Read}, newData(CLIENT))
+
+    of CLIENT:
+      const size = 256
+      var buf: array[size, char]
+
+      while true:
+        let r = recv(fd.SocketHandle, addr(buf[0]), size, 0)
+
+        if r == 0:
+          selector.unregister(fd)
+          close(fd.SocketHandle)
+          return
+
+        if r == -1:
+          if osLastError().int in {EWOULDBLOCK, EAGAIN}:
+            break
+          selector.unregister(fd)
+          close(fd.SocketHandle)
+          return
+
+        data.buf.add(addr(buf[0]))
+
+      #let r = mp_req()
+
+      var body = 
+        makeResp(
+          HTTP200,
+          "text/plain",
+          "Hello World"
+        )
+
+      discard send(fd.SocketHandle, addr(body[0]), body.len, 0)
+
+      data.buf.setLen(0)
+
+    of ASYNC:
+      data.cb(data.fd, data.res)
     else:
-      await send(fd, addr(body[0]), body.len)
+      discard
 
-proc eventLoop() {.async, thread.}=
-  let server = newServerSocket()
+proc eventLoop() {.thread.}=
+  let
+    server = newServerSocket()
+    selector = newSelector[Data]()
 
-  setGlobalDispatcher(newDispatcher())
+  selector.registerHandle(server, {Event.Read}, newData(SERVER))
 
-  asyncdispatch.register(server.AsyncFD)
-
+  var ev: array[64, ReadyKey]
   while true:
-    let client = await server.AsyncFD.accept()
-    asyncCheck eventHandler(client)
+    let cnt = selector.selectInto(-1, ev)
+    eventHandler(selector, ev, cnt)
 
-proc main() =
-  waitFor eventLoop()
-
-var th: Thread[void]
+var threads: Thread[void]
 
 for i in 0 ..< countProcessors():
-  createThread(th, main)
+  createThread(threads, eventLoop)
 
-joinThread(th)
+joinThread(threads)

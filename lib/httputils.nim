@@ -1,3 +1,5 @@
+import strutils
+
 const
   HTTP100* = "HTTP/1.1 100 Continue" & "\r\L"
   HTTP101* = "HTTP/1.1 101 Switching Protocols" & "\r\L"
@@ -18,10 +20,10 @@ const
   HTTP304* = "HTTP/1.1 304 Not Modified" & "\r\L"
   HTTP305* = "HTTP/1.1 305 Use Proxy" & "\r\L"
   HTTP307* = "HTTP/1.1 307 Temporary Redirect" & "\r\L"
-  HTTP308* = "HTTP/1.1 308Permanent Redirect" & "\r\L"
+  HTTP308* = "HTTP/1.1 308 Permanent Redirect" & "\r\L"
   HTTP400* = "HTTP/1.1 400 Bad Request" & "\r\L"
   HTTP401* = "HTTP/1.1 401 Unauthorized" & "\r\L"
-  HTTP402* = "HTTP/1.1 402Payment Required" & "\r\L"
+  HTTP402* = "HTTP/1.1 402 Payment Required" & "\r\L"
   HTTP403* = "HTTP/1.1 403 Forbidden" & "\r\L"
   HTTP404* = "HTTP/1.1 404 Not Found" & "\r\L"
   HTTP405* = "HTTP/1.1 405 Method Not Allowed" & "\r\L"
@@ -60,11 +62,7 @@ const
   HTTP510* = "HTTP/1.1 510 Not Extended" & "\r\L"
 
 proc makeRespNoBody*(statusLine: string): string {.inline.}=
-  result = ""
-  result.add(statusLine)
-  result.add("Connection: ")
-  result.add("keep-alive")
-  result.add("\r\L")
+  result = statusLine & "Connection: keep-alive\r\L"
 
 proc makeResp*(statusLine: string, mime: string, body: string, charset: string = "utf-8"): string {.inline.}=
   result = makeRespNoBody(statusLine)
@@ -72,11 +70,9 @@ proc makeResp*(statusLine: string, mime: string, body: string, charset: string =
   result.add(mime)
   result.add("; charset=")
   result.add(charset)
-  result.add("\r\L")
-  result.add("Content-Length: ")
+  result.add("\r\LContent-Length: ")
   result.add(body.len)
-  result.add("\r\L")
-  result.add("\r\L")
+  result.add("\r\L\r\L")
   result.add(body)
 
 proc addHeader*(body: string, name: string, value: string): string {.inline.}=
@@ -88,7 +84,18 @@ proc addHeader*(body: string, name: string, value: string): string {.inline.}=
   result.add("\r\L")
 
 proc notFound*(): string {.inline.}=
-  result = makeResp(HTTP404, "text/html", "<center><h1>404 Not Found.</h1><center>")
+  result = makeResp(
+    HTTP404,
+    "text/html",
+    "<html><head><title>404 Not Found</title></head><body style=\"text-align: center;\"><h1>404 Not Found</h1><hr/><p>Mofuw 0.0.0</p></body></html>"
+  )
+
+proc bodyTooLarge*(): string {.inline.}=
+  result = makeResp(
+    HTTP413,
+    "text/html",
+    "<html><head><title>413 Request Entity Too Large</title></head><body style=\"text-align: center;\"><h1>404 Not Found</h1><hr/><p>Mofuw 0.0.0</p></body></html>"
+  )
 
 proc redirect*(URL: string): string {.inline.}=
   result = addHeader(makeRespNoBody(HTTP301), "Location", URL)
