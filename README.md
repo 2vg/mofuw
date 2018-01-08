@@ -6,7 +6,7 @@ yeah, found way multi-thread event loop so im develop change backend libuv to li
 
 but probably, will not to change API usage
 
-### Featuer
+### Feature
 - high-performance
 - low used memory
 - used backend is libuv, so Asynchronous I/O and Non-Blocking I/O
