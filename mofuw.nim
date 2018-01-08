@@ -1,4 +1,4 @@
-import selectors, net, nativesockets, os
+import selectors, net, nativesockets, os, streams, threadpool
 
 import lib/httputils
 import lib/mofuparser
@@ -7,18 +7,18 @@ from osproc import countProcessors
 from posix import EAGAIN, EWOULDBLOCK
 
 type
-  fd_type = enum
+  fdType = enum
     SERVER,
     CLIENT,
     ASYNC
 
   Data = object
-    `type`: fd_type
+    `type`: fdType
     buf: string
     queue: int
     sent: int
     fd: int
-    res: pointer
+    results: pointer
     cb: proc(fd: int, res: pointer)
 
 var
@@ -31,6 +31,20 @@ var
   # for accept4
   SOCK_CLOEXEC* {.importc, header: "<sys/socket.h>".}: cint
 
+  selector {.threadvar.}: Selector[Data]
+
+proc newGlobalSelector*(): Selector[Data] =
+  result = newSelector[Data]()
+
+proc setGlobalSelector*(sel: Selector) =
+  selector = sel
+
+proc getGlobalSelector*(): Selector[Data] =
+  if selector.isNil:
+    setGlobalSelector(newGlobalSelector())
+
+  result = selector
+
 proc accept4(a1: cint, a2: ptr SockAddr, a3: ptr Socklen, flags: cint): cint
   {.importc, header: "<sys/socket.h>".}
 
@@ -41,7 +55,7 @@ proc newData(typ: fd_type, fd: int = 0, res: pointer = nil, cb: proc(fd: int, re
     queue: 0,
     sent: 0,
     fd: fd,
-    res: res,
+    results: res,
     cb: cb
   )
 
@@ -68,6 +82,30 @@ proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
 
   return server.getFd()
 
+proc AsyncFileRead*(selector: Selector, path: string, fd: int, cb: proc(fd: int, res: pointer)): void =
+  var
+    completer = newSelectEvent()
+    Fut: cstring
+
+  selector.registerEvent(completer, newData(ASYNC, fd, addr(Fut), cb))
+  
+  let fs = newFileStream(path, fmRead)
+  
+  if not isNil(fs):
+    Fut =
+      makeResp(
+        HTTP200,
+        "text/plain",
+        readAll(fs)
+      )
+
+  else:
+    Fut = notFound()
+  
+  fs.close()
+
+  trigger(completer)
+
 proc eventHandler(selector: Selector[Data], 
                   ev: array[64, ReadyKey],
                   cnt: int,) =
@@ -75,6 +113,12 @@ proc eventHandler(selector: Selector[Data],
   for i in 0 ..< cnt:
     let fd = ev[i].fd
     var data: ptr Data = addr(selector.getData(fd))
+
+    proc getFD(): int =
+      result = fd
+
+    proc asyncFile(path: string, cb: proc(fd: int, res: pointer)) =
+      spawn AsyncFileRead(getGlobalSelector(), path, getFD(), cb)
 
     case data.type
     of SERVER:
@@ -119,19 +163,27 @@ proc eventHandler(selector: Selector[Data],
           "Hello World"
         )
 
+      proc read_cb(fd: int, res: pointer) =
+        discard send(fd.SocketHandle, cast[ptr cstring](res), cast[ptr cstring](res)[].len, 0)
+
+        data.buf.setLen(0)
+
+      #asyncFile("public/index.html", read_cb)
+
       discard send(fd.SocketHandle, addr(body[0]), body.len, 0)
 
       data.buf.setLen(0)
 
     of ASYNC:
-      data.cb(data.fd, data.res)
+      data.cb(data.fd, data.results)
+
     else:
       discard
 
 proc eventLoop() {.thread.}=
   let
     server = newServerSocket()
-    selector = newSelector[Data]()
+    selector = getGlobalSelector()
 
   selector.registerHandle(server, {Event.Read}, newData(SERVER))
 
