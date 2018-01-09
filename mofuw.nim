@@ -18,8 +18,9 @@ type
     queue: int
     sent: int
     fd: int
-    results: pointer
-    cb: proc(fd: int, res: pointer)
+    resultdata: cstring
+    resultptr: pointer
+    cb: proc(fd: int, resdata: cstring, resptr: pointer)
 
 var
   # import TCP_NODELAY for disable Nagle algorithm
@@ -45,17 +46,24 @@ proc getGlobalSelector*(): Selector[Data] =
 
   result = selector
 
-proc accept4(a1: cint, a2: ptr SockAddr, a3: ptr Socklen, flags: cint): cint
-  {.importc, header: "<sys/socket.h>".}
+proc getGlobalSelectorAddr*(): ptr Selector[Data] =
+  var sel = getGlobalSelector()
 
-proc newData(typ: fd_type, fd: int = 0, res: pointer = nil, cb: proc(fd: int, res: pointer) = nil): Data =
+  result = sel.addr
+
+when defined(linux):
+  proc accept4(a1: cint, a2: ptr SockAddr, a3: ptr Socklen, flags: cint): cint
+    {.importc, header: "<sys/socket.h>".}
+
+proc newData(typ: fd_type, fd: int = 0, resdata: cstring = nil, cb: proc(fd: int, resdata: cstring, resptr: pointer) = nil, res: pointer = nil): Data =
   Data(
     type: typ,
     buf: "",
     queue: 0,
     sent: 0,
     fd: fd,
-    results: res,
+    resultdata: resdata,
+    resultptr: res,
     cb: cb
   )
 
@@ -82,29 +90,30 @@ proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
 
   return server.getFd()
 
-proc AsyncFileRead*(selector: Selector, path: string, fd: int, cb: proc(fd: int, res: pointer)): void =
-  var
-    completer = newSelectEvent()
-    Fut: cstring
+proc AsyncFileRead*(sel: ptr Selector[Data], fd: int, fut: ptr cstring, path: string, cb: proc(fd: int, resdata: cstring, resptr: pointer)): void =
+  var sev = newSelectEvent()
 
-  selector.registerEvent(completer, newData(ASYNC, fd, addr(Fut), cb))
-  
-  let fs = newFileStream(path, fmRead)
-  
-  if not isNil(fs):
-    Fut =
+  if fileExists(path):
+    let f = readFile(path)
+
+    fut[] =
       makeResp(
         HTTP200,
         "text/plain",
-        readAll(fs)
+        f
       )
-
   else:
-    Fut = notFound()
-  
-  fs.close()
+    fut[] = notFound()
 
-  trigger(completer)
+  if sel[] == nil:
+    echo repr sel
+
+  if fut[] == nil:
+    echo repr fut
+
+  sel[].registerEvent(sev, newData(ASYNC, fd, fut[], cb, fut))
+
+  trigger(sev)
 
 proc eventHandler(selector: Selector[Data], 
                   ev: array[64, ReadyKey],
@@ -117,21 +126,34 @@ proc eventHandler(selector: Selector[Data],
     proc getFD(): int =
       result = fd
 
-    proc asyncFile(path: string, cb: proc(fd: int, res: pointer)) =
-      spawn AsyncFileRead(getGlobalSelector(), path, getFD(), cb)
+    proc asyncFile(path: string, cb: proc(fd: int, resdata: cstring, resptr: pointer)) =
+      var
+        Fut: cstring = ""
+        Sel = getGlobalSelector()
+        FutAddr = addr(Fut)
+        SelAddr = addr(Sel)
+
+      if Sel == nil:
+        echo repr Sel
+
+      spawn AsyncFileRead(SelAddr, getFD(), FutAddr, path, cb)
 
     case data.type
     of SERVER:
       var
+        client: SocketHandle
         sockAddress: Sockaddr_in
         addrLen = SockLen(sizeof(sockAddress))
 
-      let client = accept4(fd.cint, cast[ptr SockAddr](addr(sockAddress)), addr(addrLen), SOCK_NONBLOCK or SOCK_CLOEXEC)
+      when defined(linux):
+        client = accept4(fd.cint, cast[ptr SockAddr](addr(sockAddress)), addr(addrLen), SOCK_NONBLOCK or SOCK_CLOEXEC).SocketHandle
+      else:
+        client = accept(fd.SocketHandle, cast[ptr SockAddr](addr(sockAddress)), addr(addrLen))
 
-      if client < 0:
+      if client.cint < 0:
         return
 
-      selector.registerHandle(client.SocketHandle, {Event.Read}, newData(CLIENT))
+      selector.registerHandle(client, {Event.Read}, newData(CLIENT))
 
     of CLIENT:
       const size = 256
@@ -156,26 +178,19 @@ proc eventHandler(selector: Selector[Data],
 
       #let r = mp_req()
 
-      var body = 
-        makeResp(
-          HTTP200,
-          "text/plain",
-          "Hello World"
-        )
-
-      proc read_cb(fd: int, res: pointer) =
-        discard send(fd.SocketHandle, cast[ptr cstring](res), cast[ptr cstring](res)[].len, 0)
+      proc read_cb(fd: int, resdata: cstring, resptr: pointer) =
+        discard send(fd.SocketHandle, resdata, resdata.len, 0)
 
         data.buf.setLen(0)
 
-      #asyncFile("public/index.html", read_cb)
+      asyncFile("index.html", read_cb)
 
-      discard send(fd.SocketHandle, addr(body[0]), body.len, 0)
+      #discard send(fd.SocketHandle, addr(body[0]), body.len, 0)
 
-      data.buf.setLen(0)
+      #data.buf.setLen(0)
 
     of ASYNC:
-      data.cb(data.fd, data.results)
+      data.cb(data.fd, data.resultdata, data.resultptr)
 
     else:
       discard
