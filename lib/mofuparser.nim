@@ -35,8 +35,8 @@ const token = [
 
 type
   HttpReq*    = object
-    `method`*    : ptr char
-    methodLen* : int
+    `method`*     : ptr char
+    methodLen*    : int
     path*         : ptr char
     pathLen*      : int
     minor*        : ptr char
@@ -53,10 +53,10 @@ proc mp_req*[T](req: ptr char, httpreq: var HttpReq, header: var ptr T): int =
   # argment initialization
   httpreq.method    = nil
   httpreq.path      = nil
-  httpreq.minor = nil
+  httpreq.minor     = nil
   httpreq.methodLen = 0
   httpreq.pathLen   = 0
-  httpreq.headerLen    = 0
+  httpreq.headerLen = 0
   
   # address of first char of request char[]
   var buf = cast[int](req)

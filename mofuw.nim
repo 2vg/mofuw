@@ -1,215 +1,213 @@
-import selectors, net, nativesockets, os, streams, threadpool
-
-import lib/httputils
-import lib/mofuparser
+import nativesockets
 
 from osproc import countProcessors
-from posix import EAGAIN, EWOULDBLOCK
+
+import lib/nimuv
+import lib/mofuparser
+import lib/httputils
+import nativesockets
+
+const
+  kByte* = 1024
+  mByte* = 1024 * kByte
+
+  maxBodySize = 1 * mByte
 
 type
-  fdType = enum
-    SERVER,
-    CLIENT,
-    ASYNC
+  #mofuw_t = object
+  #  server: uv_tcp_t
 
-  Data = object
-    `type`: fdType
-    buf: string
-    queue: int
-    sent: int
-    fd: int
-    resultdata: cstring
-    resultptr: pointer
-    cb: proc(fd: int, resdata: cstring, resptr: pointer)
+  http_req* = object
+    handle: ptr uv_handle_t
+    req_line: HttpReq
+    req_header: array[64, headers]
+    req_header_addr: ptr http_req.req_header
+    req_body: cstring
+    req_body_len: int
 
-var
-  # import TCP_NODELAY for disable Nagle algorithm
-  TCP_NODELAY {.importc: "TCP_NODELAY", header: "<netinet/tcp.h>".}: cint
+  http_res* = object
+    handle: ptr uv_handle_t
+    fd: cint
+    res: ptr uv_write_t
+    body: uv_buf_t
 
-  # for accept4
-  SOCK_NONBLOCK* {.importc, header: "<sys/socket.h>".}: cint
-  
-  # for accept4
-  SOCK_CLOEXEC* {.importc, header: "<sys/socket.h>".}: cint
+  router = ref object
+    GET: seq[router_t]
+    POST: seq[router_t]
 
-  selector {.threadvar.}: Selector[Data]
+  router_t = object
+    path: string
+    cb: proc(req: ptr http_req, res: ptr http_res)
 
-proc newGlobalSelector*(): Selector[Data] =
-  result = newSelector[Data]()
+proc getMethod*(req: ptr http_req): string {.inline.} =
+  return ($(req.req_line.method))[0 .. req.req_line.methodLen]
 
-proc setGlobalSelector*(sel: Selector) =
-  selector = sel
+proc getPath*(req: ptr http_req): string {.inline.} =
+  return ($(req.req_line.path))[0 .. req.req_line.pathLen]
 
-proc getGlobalSelector*(): Selector[Data] =
-  if selector.isNil:
-    setGlobalSelector(newGlobalSelector())
+# Global Router variable
+var ROUTER {.threadvar.}: router
 
-  result = selector
-
-proc getGlobalSelectorAddr*(): ptr Selector[Data] =
-  var sel = getGlobalSelector()
-
-  result = sel.addr
-
-when defined(linux):
-  proc accept4(a1: cint, a2: ptr SockAddr, a3: ptr Socklen, flags: cint): cint
-    {.importc, header: "<sys/socket.h>".}
-
-proc newData(typ: fd_type, fd: int = 0, resdata: cstring = nil, cb: proc(fd: int, resdata: cstring, resptr: pointer) = nil, res: pointer = nil): Data =
-  Data(
-    type: typ,
-    buf: "",
-    queue: 0,
-    sent: 0,
-    fd: fd,
-    resultdata: resdata,
-    resultptr: res,
-    cb: cb
+proc newRouter(): router =
+  result = router(
+    GET: @[],
+    POST: @[]
   )
 
-proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
-  let server = newSocket()
+proc setRouter(r: router) =
+  ROUTER = r
 
-  # reuse address
-  server.setSockOpt(OptReuseAddr, true)
+proc getRouter(): router =
+  if ROUTER.isNil:
+    setRouter(newRouter())
 
-  # reuse port
-  server.setSockOpt(OptReusePort, true)
+  result = ROUTER
 
-  # disable Nagle
-  server.getFD().setSockOptInt(cint(IPPROTO_TCP), TCP_NODELAY, 1)
+proc after_close(handle: ptr uv_handle_t) {.cdecl.} =
+  return
 
-  # set nonblocking
-  server.getFd.setBlocking(false)
+proc free_response(req: ptr uv_write_t, status: cint) {.cdecl.} =
+  dealloc(req)
 
-  # bind port
-  server.bindAddr(Port(port))
+proc buf_alloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} = 
+  buf[].base = alloc(size)
+  buf[].len = size
 
-  # listen binding port and set maxbacklog
-  server.listen(backlog.cint)
+proc mofuw_send*(res: ptr http_res, body: cstring) =
+  res.body.base = body
+  res.body.len = body.len
 
-  return server.getFd()
+  if not uv_write(res.res, cast[ptr uv_stream_t](res.handle), res.body.addr, 1, free_response) == 0:
+    dealloc(res.res)
+    return
 
-proc AsyncFileRead*(sel: ptr Selector[Data], fd: int, fut: ptr cstring, path: string, cb: proc(fd: int, resdata: cstring, resptr: pointer)): void =
-  var sev = newSelectEvent()
+proc notFound*(res: ptr http_res) =
+  mofuw_send(res, notFound())
 
-  if fileExists(path):
-    let f = readFile(path)
+proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
+  if nread == -4095:
+    dealloc(stream)
+    dealloc(buf.base)
+    uv_close(cast[ptr uv_handle_t](stream), after_close)
+    return
+  elif nread < 0:
+    dealloc(stream)
+    dealloc(buf.base)
+    uv_close(cast[ptr uv_handle_t](stream), after_close)
+    return
 
-    fut[] =
-      makeResp(
-        HTTP200,
-        "text/plain",
-        f
-      )
-  else:
-    fut[] = notFound()
+  var
+    req = http_req()
+    request = req.addr
+    res = http_res()
+    response = res.addr
 
-  if sel[] == nil:
-    echo repr sel
+  response.handle = cast[ptr uv_handle_t](stream)
 
-  if fut[] == nil:
-    echo repr fut
+  request.req_header_addr = request.req_header.addr
 
-  sel[].registerEvent(sev, newData(ASYNC, fd, fut[], cb, fut))
+  response.res = cast[ptr uv_write_t](alloc(sizeof(uv_write_t)))
 
-  trigger(sev)
+  let r = mp_req(cast[ptr char](buf.base), request.req_line, request.req_header_addr)
 
-proc eventHandler(selector: Selector[Data], 
-                  ev: array[64, ReadyKey],
-                  cnt: int,) =
+  if r <= 0:
+    notFound(response)
+    dealloc(stream)
+    dealloc(buf.base)
+    uv_close(cast[ptr uv_handle_t](stream), after_close)
+    return
 
-  for i in 0 ..< cnt:
-    let fd = ev[i].fd
-    var data: ptr Data = addr(selector.getData(fd))
+  request.req_body = cast[ptr char]((cast[int](buf.base)) + r)
+  request.req_body_len = request.req_body.len
 
-    proc getFD(): int =
-      result = fd
+  if request.req_body_len > maxBodySize:
+    mofuw_send(response, bodyTooLarge())
+    dealloc(buf.base)
+    return
 
-    proc asyncFile(path: string, cb: proc(fd: int, resdata: cstring, resptr: pointer)) =
-      var
-        Fut: cstring = ""
-        Sel = getGlobalSelector()
-        FutAddr = addr(Fut)
-        SelAddr = addr(Sel)
-
-      if Sel == nil:
-        echo repr Sel
-
-      spawn AsyncFileRead(SelAddr, getFD(), FutAddr, path, cb)
-
-    case data.type
-    of SERVER:
-      var
-        client: SocketHandle
-        sockAddress: Sockaddr_in
-        addrLen = SockLen(sizeof(sockAddress))
-
-      when defined(linux):
-        client = accept4(fd.cint, cast[ptr SockAddr](addr(sockAddress)), addr(addrLen), SOCK_NONBLOCK or SOCK_CLOEXEC).SocketHandle
-      else:
-        client = accept(fd.SocketHandle, cast[ptr SockAddr](addr(sockAddress)), addr(addrLen))
-
-      if client.cint < 0:
-        return
-
-      selector.registerHandle(client, {Event.Read}, newData(CLIENT))
-
-    of CLIENT:
-      const size = 256
-      var buf: array[size, char]
-
-      while true:
-        let r = recv(fd.SocketHandle, addr(buf[0]), size, 0)
-
-        if r == 0:
-          selector.unregister(fd)
-          close(fd.SocketHandle)
-          return
-
-        if r == -1:
-          if osLastError().int in {EWOULDBLOCK, EAGAIN}:
-            break
-          selector.unregister(fd)
-          close(fd.SocketHandle)
-          return
-
-        data.buf.add(addr(buf[0]))
-
-      #let r = mp_req()
-
-      proc read_cb(fd: int, resdata: cstring, resptr: pointer) =
-        discard send(fd.SocketHandle, resdata, resdata.len, 0)
-
-        data.buf.setLen(0)
-
-      asyncFile("index.html", read_cb)
-
-      #discard send(fd.SocketHandle, addr(body[0]), body.len, 0)
-
-      #data.buf.setLen(0)
-
-    of ASYNC:
-      data.cb(data.fd, data.resultdata, data.resultptr)
-
+  case getMethod(request)
+  of "GET":
+    if getRouter().GET.len == 0:
+      notFound(response)
     else:
-      discard
+      for value in getRouter().GET:
+        if getPath(request) == value.path:
+          value.cb(request, response)
+          dealloc(buf.base)
+          return
+      notFound(response)
+  of "POST":
+    if getRouter().POST.len == 0:
+      notFound(response)
+    else:
+      for value in getRouter().POST:
+        if getPath(request) == value.path:
+          value.cb(request, response)
+          dealloc(buf.base)
+          return
+      notFound(response)
+  else:
+    notFound(response)
 
-proc eventLoop() {.thread.}=
-  let
-    server = newServerSocket()
-    selector = getGlobalSelector()
+  dealloc(buf.base)
 
-  selector.registerHandle(server, {Event.Read}, newData(SERVER))
+proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
+  if not status == 0:
+    echo "error: ", uv_err_name(status), uv_strerror(status), "\n"
 
-  var ev: array[64, ReadyKey]
-  while true:
-    let cnt = selector.selectInto(-1, ev)
-    eventHandler(selector, ev, cnt)
+  var client = cast[ptr uv_stream_t](alloc(sizeof(uv_tcp_t)))
 
-var threads: Thread[void]
+  if not uv_tcp_init(server.loop, cast[ptr uv_tcp_t](client)) == 0:
+    return
 
-for i in 0 ..< countProcessors():
-  createThread(threads, eventLoop)
+  if not uv_accept(server, client) == 0:
+    return
 
-joinThread(threads)
+  if not uv_read_start(client, buf_alloc, read_cb) == 0:
+    return
+
+proc mofuw_init*(t: tuple[port: int, backlog: int, router: router]) =
+  var
+    server: ptr uv_tcp_t = cast[ptr uv_tcp_t](alloc(sizeof(uv_tcp_t)))
+    loop: ptr uv_loop_t = cast[ptr uv_loop_t](alloc(sizeof(uv_loop_t)))
+    sockaddr: SockAddrIn
+    fd: uv_os_fd_t
+
+  ROUTER = t.router
+
+  discard uv_loop_init(loop)
+
+  discard uv_ip4_addr("0.0.0.0".cstring, t.port.cint, sockaddr.addr)
+
+  discard uv_tcp_init_ex(loop, server, AF_INET.cuint)
+
+  discard uv_tcp_nodelay(server, 1)
+
+  discard uv_tcp_simultaneous_accepts(server, 1)
+
+  discard uv_fileno(cast[ptr uv_handle_t](server), fd.addr)
+
+  fd.SocketHandle.setSockOptInt(cint(SOL_SOCKET), SO_REUSEPORT, 1)
+
+  discard uv_tcp_bind(server, cast[ptr SockAddr](sockaddr.addr), 0)
+
+  discard uv_listen(cast[ptr uv_stream_t](server), t.backlog.cint, accept_cb)
+
+  discard uv_run(loop, UV_RUN_DEFAULT)
+
+proc mofuwGET*(path: string, cb: proc(req: ptr http_req, res: ptr http_res)) =
+  getRouter().GET.add(router_t(path: path, cb: cb))
+
+proc mofuwRUN*(port: int = 8080, backlog: int = 128) =
+  var th: Thread[tuple[port: int, backlog: int, router: router]]
+
+  if getRouter().GET.len == 0 and
+     getRouter().POST.len == 0:
+    raise newException(Exception, "nothing router.")
+
+  for i in 0 ..< countProcessors():
+    createThread[tuple[port: int, backlog: int, router: router]](
+      th, mofuw_init, (port, backlog, getRouter())
+    )
+
+  joinThread(th)

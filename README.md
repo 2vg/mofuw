@@ -1,45 +1,55 @@
 # mofuw
 > mofuw is **M**eccha hayai Asynchronous, Non-Blocking I/**O** no super **F**ast de **U**ltra minimal na **W**eb server on Nim.
 
-## working change backend libuv to libev
-yeah, found way multi-thread event loop so im develop change backend libuv to libev.
+## ~~working change backend libuv to libev~~
+~~yeah, found way multi-thread event loop so im develop change backend libuv to libev.
+but probably, will not to change API usage~~
 
-but probably, will not to change API usage
+## Decided to continue developing the back end with libuv
+- Why ?
 
-### Feature
+A. because my understanding of asynchrony is not enough yet.
+
+- No plans to change from libuv?
+
+A. answer is **No**.
+
+I will not develop it yet, but it's probably not a distant future.
+
+## Feature
 - high-performance
 - low used memory
 - used backend is libuv, so Asynchronous I/O and Non-Blocking I/O
 - my parser is implement like [picohttpparser](https://github.com/h2o/picohttpparser), so Zero-Copy, ultra fast parsing... yeah, fast may.
 - Easy API, create Web Application, create an extended Web server
-- Multi-Core support, see app.nim
+- multi-thread support, see app.nim
 
-### Why fast ?
+## Why fast ?
 because using libuv, and using fast parser.
 
 about my parser, check [mofuparser](https://github.com/2vg/mofuparser)
 
-~~but, i want to use libev... because more faster than libuv...~~
-this is developping now !
+~~but, i want to use libev... because more faster than libuv...
+this is developping now !~~
 
-if i will made Asynchronous library, i will may replace libuv to libev
+if i will made Asynchronous library, i will may replace libuv to libev or Selectors. (or make lib)
 
-### Warning
+## Warning
 mofuw is now developping.
 
 please be careful when using.
 
-### Require
-- nim(tested nim0.17.2)
+## Require
+- nim(tested nim-devel and nim-0.17.2)
 
-### Usage
-see app_uv.nim and app_ev.nim
+## Usage
+see app.nim
 
 **Now support GET method only**
 
-### Todo
-- header make proc(?)
-- Cache (memory buffer ? collab with redis ?)
-- File response (will soon complete)
-- routing (now support GET only, want to finish it early)
-- ~~multi-thread (this need ?)~~
+## Todo
+- [x] ~~header make proc(?)~~
+- [ ] Cache (memory buffer ? collab with redis ?)
+- [ ] File response (will soon complete)
+- [ ] routing (now support GET only, want to finish it early)
+- [x] ~~multi-thread (this need ?)~~
