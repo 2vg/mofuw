@@ -4,8 +4,16 @@ import lib/httputils
 mofuwGET("/", proc(req: ptr http_req, res: ptr http_res) =
   res.mofuw_send(makeResp(
     HTTP200,
-    "text/plain",
+    "text/html",
     "Hello World"
+  ))
+)
+
+mofuwGET("/plaintext", proc(req: ptr http_req, res: ptr http_res) =
+  res.mofuw_send(makeResp(
+    HTTP200,
+    "text/plain",
+    "Hello, World!"
   ))
 )
 
