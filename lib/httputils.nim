@@ -1,4 +1,4 @@
-import strutils
+import strutils, times
 
 const
   HTTP100* = "HTTP/1.1 100 Continue" & "\r\L"
@@ -61,8 +61,25 @@ const
   HTTP509* = "HTTP/1.1 509 Bandwidth Limit Exceeded" & "\r\L"
   HTTP510* = "HTTP/1.1 510 Not Extended" & "\r\L"
 
+const
+  serverName = "mofuw 0.0.1"
+
+var
+  serverTime {.threadvar.}: string
+
+proc getServerTime*(): string =
+  result = format(getTime().inZone(utc()), "ddd, dd MMM yyyy hh:mm:ss 'GMT'")
+
+proc updateServerTime*() =
+  serverTime = getServerTime()
+
 proc makeRespNoBody*(statusLine: string): string {.inline.}=
-  result = statusLine & "Connection: keep-alive\r\L"
+  result = statusLine
+  result.add("Server: ")
+  result.add(serverName)
+  result.add("\r\LDate: ")
+  result.add(serverTime)
+  result.add("\r\LConnection: keep-alive\r\L")
 
 proc makeResp*(statusLine: string, mime: string, body: string, charset: string = "utf-8"): string {.inline.}=
   result = makeRespNoBody(statusLine)
@@ -87,14 +104,14 @@ proc notFound*(): string {.inline.}=
   result = makeResp(
     HTTP404,
     "text/html",
-    "<html><head><title>404 Not Found</title></head><body style=\"text-align: center;\"><h1>404 Not Found</h1><hr/><p>Mofuw 0.0.0</p></body></html>"
+    "<html><head><title>404 Not Found</title></head><body style=\"text-align: center;\"><h1>404 Not Found</h1><hr/><p>Mofuw 0.0.1</p></body></html>"
   )
 
 proc bodyTooLarge*(): string {.inline.}=
   result = makeResp(
     HTTP413,
     "text/html",
-    "<html><head><title>413 Request Entity Too Large</title></head><body style=\"text-align: center;\"><h1>404 Not Found</h1><hr/><p>Mofuw 0.0.0</p></body></html>"
+    "<html><head><title>413 Request Entity Too Large</title></head><body style=\"text-align: center;\"><h1>404 Not Found</h1><hr/><p>Mofuw 0.0.1</p></body></html>"
   )
 
 proc redirect*(URL: string): string {.inline.}=

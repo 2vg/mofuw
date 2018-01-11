@@ -20,7 +20,7 @@ type
   http_req* = object
     handle: ptr uv_handle_t
     req_line: HttpReq
-    req_header: array[64, headers]
+    req_header: array[48, headers]
     req_header_addr: ptr http_req.req_header
     req_body: cstring
     req_body_len: int
@@ -73,7 +73,7 @@ proc buf_alloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.
   buf[].base = alloc(size)
   buf[].len = size
 
-proc mofuw_send*(res: ptr http_res, body: cstring) =
+proc mofuw_send*(res: ptr http_res, body: cstring) {.inline.}=
   res.body.base = body
   res.body.len = body.len
 
@@ -98,9 +98,9 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   var
     req = http_req()
-    request = req.addr
+    request = addr(req)
     res = http_res()
-    response = res.addr
+    response = addr(res)
 
   response.handle = cast[ptr uv_handle_t](stream)
 
@@ -166,10 +166,14 @@ proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
   if not uv_read_start(client, buf_alloc, read_cb) == 0:
     return
 
+proc updateServerTime(handle: ptr uv_timer_t) {.cdecl.}=
+  httputils.updateServerTime()
+
 proc mofuw_init*(t: tuple[port: int, backlog: int, router: router]) =
   var
     server: ptr uv_tcp_t = cast[ptr uv_tcp_t](alloc(sizeof(uv_tcp_t)))
     loop: ptr uv_loop_t = cast[ptr uv_loop_t](alloc(sizeof(uv_loop_t)))
+    timer: ptr uv_timer_t = cast[ptr uv_timer_t](alloc(sizeof(uv_timer_t)))
     sockaddr: SockAddrIn
     fd: uv_os_fd_t
 
@@ -177,7 +181,7 @@ proc mofuw_init*(t: tuple[port: int, backlog: int, router: router]) =
 
   discard uv_loop_init(loop)
 
-  discard uv_ip4_addr("0.0.0.0".cstring, t.port.cint, sockaddr.addr)
+  discard uv_ip4_addr("0.0.0.0".cstring, t.port.cint, addr(sockaddr))
 
   discard uv_tcp_init_ex(loop, server, AF_INET.cuint)
 
@@ -185,13 +189,19 @@ proc mofuw_init*(t: tuple[port: int, backlog: int, router: router]) =
 
   discard uv_tcp_simultaneous_accepts(server, 1)
 
-  discard uv_fileno(cast[ptr uv_handle_t](server), fd.addr)
+  discard uv_fileno(cast[ptr uv_handle_t](server), addr(fd))
 
   fd.SocketHandle.setSockOptInt(cint(SOL_SOCKET), SO_REUSEPORT, 1)
 
-  discard uv_tcp_bind(server, cast[ptr SockAddr](sockaddr.addr), 0)
+  discard uv_tcp_bind(server, cast[ptr SockAddr](addr(sockaddr)), 0)
 
   discard uv_listen(cast[ptr uv_stream_t](server), t.backlog.cint, accept_cb)
+
+  discard uv_timer_init(loop, timer)
+
+  discard uv_timer_start(timer, updateServerTime, 0.uint64, 1.0.uint64)
+
+  httputils.updateServerTime()
 
   discard uv_run(loop, UV_RUN_DEFAULT)
 

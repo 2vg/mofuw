@@ -35,20 +35,20 @@ const token = [
 
 type
   HttpReq*    = object
-    `method`*     : ptr char
+    `method`*     : cstring
     methodLen*    : int
-    path*         : ptr char
+    path*         : cstring
     pathLen*      : int
-    minor*        : ptr char
+    minor*        : cstring
     headerLen*    : int
 
   headers*     = object
-    name*        : ptr char
+    name*        : cstring
     nameLen*     : int
-    value*       : ptr char
+    value*       : cstring
     valueLen*    : int
 
-proc mp_req*[T](req: ptr char, httpreq: var HttpReq, header: var ptr T): int =
+proc mp_req*[T](req: cstring, httpreq: var HttpReq, header: var ptr T): int =
 
   # argment initialization
   httpreq.method    = nil
@@ -149,7 +149,7 @@ proc mp_req*[T](req: ptr char, httpreq: var HttpReq, header: var ptr T): int =
   buf += 1
 
   # HEADER check
-  for i in 0 .. header[].len - 1:
+  for i in 0 ..< header[].len:
     let uchar = cast[ptr char](buf)[]
     # nil check
     if uchar == '\0':
