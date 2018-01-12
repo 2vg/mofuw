@@ -199,7 +199,7 @@ proc mofuw_init*(t: tuple[port: int, backlog: int, router: router]) =
 
   discard uv_timer_init(loop, timer)
 
-  discard uv_timer_start(timer, updateServerTime, 0.uint64, 1.0.uint64)
+  discard uv_timer_start(timer, updateServerTime, 0.uint64, 1000.0.uint64)
 
   httputils.updateServerTime()
 
