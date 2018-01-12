@@ -29,6 +29,12 @@ see this benchmark result.
 
 mofuw is more faster than [tokio-minihttp](https://github.com/tokio-rs/tokio-minihttp).
 
+#### my server spec:
+
+- OS: Arch Linux 4.13.8-1-ARCH
+- CPU: Intel core 2Duo T7700 2.40GHz 3 Core
+- MEM: 2GB
+
 ### tokio-minihttp
 
 ![tokio-minihttp.png](images/tokio-minihttp.png)
