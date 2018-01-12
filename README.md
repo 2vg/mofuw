@@ -24,6 +24,21 @@ I will not develop it yet, but it's probably not a distant future.
 - Easy API, create Web Application, create an extended Web server
 - multi-thread support, see app.nim
 
+## Benchmark
+see this benchmark result.
+
+mofuw is more faster than [tokio-minihttp](https://github.com/tokio-rs/tokio-minihttp).
+
+### tokio-minihttp
+
+![tokio-minihttp.png](images/tokio-minihttp.png)
+
+### mofuw
+
+![mofuw.png](images/mofuw.png)
+
+this is a slightly old benchmark result of [techempower](https://www.techempower.com/benchmarks/#section=data-r14&hw=ph&test=plaintext), but if can apply my benchmark result to this techempower's benchmark result, **mofuw can aim at 1st place**.
+
 ## Why fast ?
 because using libuv, and using fast parser.
 
