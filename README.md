@@ -27,6 +27,9 @@ I will not develop it yet, but it's probably not a distant future.
 - Easy API, create Web Application, create an extended Web server
 - multi-thread support, see app.nim
 
+## example
+see [example](https://github.com/2vg/mofuw/blob/master/example)
+
 ## Benchmark
 see this benchmark result.
 

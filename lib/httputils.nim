@@ -1,4 +1,4 @@
-import strutils, times
+import times
 
 const
   HTTP100* = "HTTP/1.1 100 Continue" & "\r\L"
