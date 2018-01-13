@@ -1,3 +1,5 @@
+#!/bin/sh
+
 wget https://dist.libuv.org/dist/v1.18.0/libuv-v1.18.0.tar.gz
 
 tar xf libuv-v1.18.0.tar.gz
