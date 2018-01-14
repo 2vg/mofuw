@@ -71,7 +71,8 @@ mofuw is now developping.
 please be careful when using.
 
 ## Require
-- nim(tested nim-devel and nim-0.17.2)
+- nim (tested nim-devel and nim-0.17.2)
+- libuv (must installed ver 1.18.0)
 
 ## Usage
 see [example](https://github.com/2vg/mofuw/blob/master/example)
