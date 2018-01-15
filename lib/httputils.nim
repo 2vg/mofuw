@@ -100,6 +100,17 @@ proc addHeader*(body: string, name: string, value: string): string {.inline.}=
   result.add(value)
   result.add("\r\L")
 
+proc redirectTo*(URL: string): string {.inline.}=
+  result = addHeader(makeRespNoBody(HTTP301), "Location", URL)
+  result.add("\r\L")
+
+proc badRequest*(): string {.inline.}=
+  result = makeResp(
+    HTTP400,
+    "text/html",
+    "<html><head><title>400 Bad Request</title></head><body style=\"text-align: center;\"><h1>400 Bad Request</h1><hr/><p>Mofuw 0.0.1</p></body></html>"
+  )
+
 proc notFound*(): string {.inline.}=
   result = makeResp(
     HTTP404,
@@ -111,9 +122,5 @@ proc bodyTooLarge*(): string {.inline.}=
   result = makeResp(
     HTTP413,
     "text/html",
-    "<html><head><title>413 Request Entity Too Large</title></head><body style=\"text-align: center;\"><h1>404 Not Found</h1><hr/><p>Mofuw 0.0.1</p></body></html>"
+    "<html><head><title>413 Request Entity Too Large</title></head><body style=\"text-align: center;\"><h1>413 Request Entity Too Large</h1><hr/><p>Mofuw 0.0.1</p></body></html>"
   )
-
-proc redirect*(URL: string): string {.inline.}=
-  result = addHeader(makeRespNoBody(HTTP301), "Location", URL)
-  result.add("\r\L")
