@@ -81,7 +81,7 @@ proc makeRespNoBody*(statusLine: string): string {.inline.}=
   result.add(serverTime)
   result.add("\r\LConnection: keep-alive\r\L")
 
-proc makeResp*(statusLine: string, mime: string, body: string, charset: string = "utf-8"): string {.inline.}=
+proc makeResp*(statusLine: string, mime: string, body: string, charset: string = "UTF-8"): string {.inline.}=
   result = makeRespNoBody(statusLine)
   result.add("Content-Type: ")
   result.add(mime)
@@ -92,16 +92,29 @@ proc makeResp*(statusLine: string, mime: string, body: string, charset: string =
   result.add("\r\L\r\L")
   result.add(body)
 
-proc addHeader*(body: string, name: string, value: string): string {.inline.}=
+proc addHeader*(body: string, headers: openArray[tuple[name: string, value: string]]): string {.inline.}=
   result = ""
   result.add(body)
-  result.add(name)
-  result.add(": ")
-  result.add(value)
-  result.add("\r\L")
+  for v in headers:
+    result.add(v.name)
+    result.add(": ")
+    result.add(v.value)
+    result.add("\r\L")
+
+proc addBody*(str: string, mime: string, body: string, charset: string = "UTF-8"): string {.inline.} =
+  result = ""
+  result.add(str)
+  result.add("Content-Type: ")
+  result.add(mime)
+  result.add("; charset=")
+  result.add(charset)
+  result.add("\r\LContent-Length: ")
+  result.add(body.len)
+  result.add("\r\L\r\L")
+  result.add(body)
 
 proc redirectTo*(URL: string): string {.inline.}=
-  result = addHeader(makeRespNoBody(HTTP301), "Location", URL)
+  result = addHeader(makeRespNoBody(HTTP301), @[("Location", URL)])
   result.add("\r\L")
 
 proc badRequest*(): string {.inline.}=
