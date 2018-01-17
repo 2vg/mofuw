@@ -240,10 +240,10 @@ when isMainModule:
     hdaddr = hd.addr
 
   # for benchmark (?) lol
-  var old = epochTime()
+  let old = cpuTime()
   for i in 0 .. 100000:
     discard mp_req(test[0].addr, htreq, hdaddr)
-  echo epochTime() - old
+  echo cpuTime() - old
 
   proc print(value: string, length: int) =
     echo value[0 .. length]
