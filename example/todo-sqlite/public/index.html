@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Rio~dngodo</title>
+  <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+  <script>
+    var todolist = {};
+    
+    fetch("http://157.7.142.47:8080/api/todo/get").then(response => {
+      console.log(response)
+      return response.json();
+    })
+    .then
+    (jsondata => {
+      todolist.todos = jsondata;
+      var newdata = jsondata;
+      todolist.trigger('refresh')
+    });
+  </script>
+</head>
+<body>
+  <todo></todo>
+  <script type="riot/tag" src="./todo.tag"></script>
+  <script type="riot/tag" src="./todo-form.tag"></script>
+  <script type="riot/tag" src="./list.tag"></script>
+  <script src='https://cdnjs.cloudflare.com/ajax/libs/riot/3.5.1/riot+compiler.js'></script>
+  <script>
+    riot.observable(todolist);
+    riot.mount('todo', {title: "from Riot option"});
+  </script>
+</body>
+</html>
