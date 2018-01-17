@@ -16,10 +16,10 @@ type
   mofuwReq* = object
     handle: ptr uv_handle_t
     reqLine: HttpReq
-    reqHeader: array[48, headers]
+    reqHeader*: array[48, headers]
     reqHeaderAddr: ptr mofuwReq.reqHeader
-    reqBody: cstring
-    reqBodyLen: int
+    reqBody*: cstring
+    reqBodyLen*: int
 
   mofuwRes* = object
     handle: ptr uv_handle_t
@@ -32,23 +32,26 @@ type
 var callback* {.threadvar.}: Callback
 
 proc getMethod*(req: ptr mofuwReq): string {.inline.} =
-  return ($(req.req_line.method))[0 .. req.req_line.methodLen]
+  result = ($(req.reqLine.method))[0 .. req.reqLine.methodLen]
 
 proc getPath*(req: ptr mofuwReq): string {.inline.} =
-  return ($(req.req_line.path))[0 .. req.req_line.pathLen]
+  result = ($(req.reqLine.path))[0 .. req.reqLine.pathLen]
+
+proc getReqBody*(req: ptr mofuwReq): string {.inline.} =
+  result = $req.reqBody
 
 proc after_close(handle: ptr uv_handle_t) {.cdecl.} =
-  return
+  dealloc(handle)
 
 proc free_response(req: ptr uv_write_t, status: cint) {.cdecl.} =
   dealloc(req)
 
 proc buf_alloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} =
-  buf[].base = alloc(size)
-  buf[].len = size
+  buf.base = cast[ptr char](alloc(size))
+  buf.len = size
 
 proc mofuw_send*(res: ptr mofuwRes, body: cstring) {.inline.}=
-  res.body.base = body
+  res.body.base = cast[ptr char](body)
   res.body.len = body.len
 
   if not uv_write(res.res, cast[ptr uv_stream_t](res.handle), res.body.addr, 1, free_response) == 0:
@@ -60,12 +63,10 @@ proc notFound*(res: ptr mofuwRes) =
 
 proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
   if nread == -4095:
-    dealloc(stream)
     dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
   elif nread < 0:
-    dealloc(stream)
     dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
@@ -91,13 +92,12 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
 
-  request.reqBody = cast[ptr char]((cast[int](buf.base)) + r)
-  request.reqBodyLen = request.req_body.len
+  request.reqBody = cast[cstring](cast[int](buf.base) + r)
 
-  if request.reqBodyLen > maxBodySize:
-    mofuw_send(response, bodyTooLarge())
-    dealloc(buf.base)
-    return
+  #if request.reqBodyLen > maxBodySize:
+  #  mofuw_send(response, bodyTooLarge())
+  #  dealloc(buf.base)
+  #  return
 
   callback(request, response)
 

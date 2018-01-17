@@ -12,8 +12,8 @@ when defined(windows):
     uv_gid_t* {.importc.} = cuchar
 
     uv_buf_t* = object
-      base* {.importc.}: pointer
-      len* {.importc.}: csize
+      base* {.importc.}: ptr char
+      len* {.importc.}: ULONG
 
     uv_os_sock_t* {.importc.} = winlean.SocketHandle
     uv_os_fd_t* {.importc.} = winlean.Handle
@@ -29,7 +29,7 @@ else:
     uv_gid_t* {.importc: "gid_t", header: "<sys/types.h>".} = cint
 
     uv_buf_t* = object
-      base* {.importc.}: pointer
+      base* {.importc.}: ptr char
       len* {.importc.}: csize
 
     uv_os_sock_t* {.importc.} = posix.SocketHandle
