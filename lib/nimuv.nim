@@ -666,10 +666,10 @@ proc uv_has_ref*(handle: ptr uv_handle_t): cint
 proc uv_handle_size*(`type`: ptr uv_handle_type): csize
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_send_buffer_size*(handle: ptr uv_handle_t, value: cint): cint
+proc uv_send_buffer_size*(handle: ptr uv_handle_t, value: ptr cint): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_recv_buffer_size*(handle: ptr uv_handle_t, value: cint): cint
+proc uv_recv_buffer_size*(handle: ptr uv_handle_t, value: ptr cint): cint
   {.importc, cdecl, dynlib: libuv.}
 
 proc uv_fileno*(handle: ptr uv_handle_t, fd: ptr uv_os_fd_t): cint
