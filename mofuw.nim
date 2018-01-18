@@ -62,7 +62,7 @@ proc notFound*(res: ptr mofuwRes) =
   mofuw_send(res, notFound())
 
 proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
-  echo repr cast[cstring](buf.base)
+  #echo repr cast[cstring](buf.base)
 
   if nread == 0: return
 
