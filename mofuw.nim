@@ -41,14 +41,14 @@ proc getReqBody*(req: ptr mofuwReq): string {.inline.} =
   result = $req.reqBody
 
 proc after_close(handle: ptr uv_handle_t) {.cdecl.} =
-  dealloc(handle)
+  return
 
 proc free_response(req: ptr uv_write_t, status: cint) {.cdecl.} =
   dealloc(req)
 
 proc buf_alloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} =
-  buf.base = cast[ptr char](alloc0(2048))
-  buf.len = 2048
+  buf.base = cast[ptr char](alloc0(4096))
+  buf.len = 4096
 
 proc mofuw_send*(res: ptr mofuwRes, body: cstring) {.inline.}=
   res.body.base = cast[ptr char](body)
@@ -62,16 +62,16 @@ proc notFound*(res: ptr mofuwRes) =
   mofuw_send(res, notFound())
 
 proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
-  #echo repr cast[cstring](buf.base)
-  
+  echo repr cast[cstring](buf.base)
+
   if nread == 0: return
 
   if nread == -4095:
-    dealloc(buf.base)
+    dealloc(buf.base.pointer)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
   elif nread < 0:
-    dealloc(buf.base)
+    dealloc(buf.base.pointer)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
 
@@ -92,7 +92,7 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
   if r <= 0:
     notFound(response)
     dealloc(stream)
-    dealloc(buf.base)
+    dealloc(buf.base.pointer)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
 
@@ -105,7 +105,7 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   callback(request, response)
 
-  dealloc(buf.base)
+  dealloc(buf.base.pointer)
 
 proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
   if not status == 0:
