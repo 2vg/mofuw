@@ -47,8 +47,8 @@ proc free_response(req: ptr uv_write_t, status: cint) {.cdecl.} =
   dealloc(req)
 
 proc buf_alloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} =
-  buf.base = cast[ptr char](alloc(size))
-  buf.len = size
+  buf.base = cast[ptr char](alloc0(2048))
+  buf.len = 2048
 
 proc mofuw_send*(res: ptr mofuwRes, body: cstring) {.inline.}=
   res.body.base = cast[ptr char](body)
@@ -62,6 +62,10 @@ proc notFound*(res: ptr mofuwRes) =
   mofuw_send(res, notFound())
 
 proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
+  #echo repr cast[cstring](buf.base)
+  
+  if nread == 0: return
+
   if nread == -4095:
     dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
@@ -83,7 +87,7 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   response.res = cast[ptr uv_write_t](alloc(sizeof(uv_write_t)))
 
-  let r = mp_req(cast[ptr char](buf.base), request.reqLine, request.reqHeaderAddr)
+  let r = mp_req(buf.base, request.reqLine, request.reqHeaderAddr)
 
   if r <= 0:
     notFound(response)
