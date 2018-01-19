@@ -92,7 +92,7 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
   if r <= 0:
     notFound(response)
     dealloc(stream)
-    dealloc(buf.base.pointer)
+    dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
 
@@ -105,7 +105,7 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   callback(request, response)
 
-  dealloc(buf.base.pointer)
+  dealloc(buf.base)
 
 proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
   if not status == 0:
