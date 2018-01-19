@@ -5,7 +5,7 @@
   add ()
   {
     if (this.refs.addTodo.value) {
-      fetch("http://157.7.142.47:8080/api/todo/add", {
+      fetch("http://localhost:8080/api/todo/add", {
         method: 'POST',
         body: JSON.stringify({"todo": this.refs.addTodo.value}),
         headers : new Headers({ "Content-type" : "application/json; charset=UTF-8" })
