@@ -29,7 +29,9 @@ type
 
   Callback* = proc(req: ptr mofuwReq, res: ptr mofuwRes)
 
-var callback* {.threadvar.}: Callback
+var
+  callback* {.threadvar.}: Callback
+  bufSize*  {.threadvar.}: int
 
 proc getMethod*(req: ptr mofuwReq): string {.inline.} =
   result = ($(req.reqLine.method))[0 .. req.reqLine.methodLen]
@@ -40,15 +42,18 @@ proc getPath*(req: ptr mofuwReq): string {.inline.} =
 proc getReqBody*(req: ptr mofuwReq): string {.inline.} =
   result = $req.reqBody
 
+proc setBufferSize*(size: int) {.inline.} = 
+  bufSize = size
+
 proc after_close(handle: ptr uv_handle_t) {.cdecl.} =
-  return
+  dealloc(handle)
 
 proc free_response(req: ptr uv_write_t, status: cint) {.cdecl.} =
   dealloc(req)
 
 proc buf_alloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} =
-  buf.base = cast[ptr char](alloc0(4096))
-  buf.len = 4096
+  buf.base = cast[ptr char](alloc(1024))
+  buf.len = 1024
 
 proc mofuw_send*(res: ptr mofuwRes, body: cstring) {.inline.}=
   res.body.base = cast[ptr char](body)
@@ -64,14 +69,12 @@ proc notFound*(res: ptr mofuwRes) =
 proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
   #echo repr cast[cstring](buf.base)
 
-  if nread == 0: return
-
   if nread == -4095:
-    dealloc(buf.base.pointer)
+    dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
   elif nread < 0:
-    dealloc(buf.base.pointer)
+    dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
 
@@ -91,7 +94,6 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   if r <= 0:
     notFound(response)
-    dealloc(stream)
     dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
@@ -171,5 +173,6 @@ proc mofuwRUN*(port: int = 8080, backlog: int = 128) =
     createThread[tuple[port: int, backlog: int, cb: Callback]](
       th, mofuw_init, (port, backlog, callback)
     )
+    #break
 
   joinThread(th)

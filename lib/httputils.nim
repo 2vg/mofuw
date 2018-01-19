@@ -79,7 +79,8 @@ proc makeRespNoBody*(statusLine: string): string {.inline.}=
   result.add(serverName)
   result.add("\r\LDate: ")
   result.add(serverTime)
-  result.add("\r\LConnection: keep-alive\r\L")
+  result.add("\r\L")
+  #result.add("\r\LConnection: keep-alive\r\L")
 
 proc makeResp*(statusLine: string, mime: string, body: string, charset: string = "UTF-8"): string {.inline.}=
   result = makeRespNoBody(statusLine)
