@@ -8,6 +8,7 @@ type
     POST: seq[router_t]
     PUT: seq[router_t]
     DELETE: seq[router_t]
+    PATCH: seq[router_t]
     OPTIONS: seq[router_t]
 
   router_t = object
@@ -20,6 +21,7 @@ proc newMofuwRouter*(): router =
     POST: @[],
     PUT: @[],
     DELETE: @[],
+    PATCH: @[],
     OPTIONS: @[]
   )
 
@@ -70,11 +72,11 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
               response.mofuw_send(badRequest())
         notFound(response)
   of "PUT":
-    if r.POST.len == 0:
+    if r.PUT.len == 0:
       notFound(response)
     else:
       block searchRoute:
-        for value in r.POST:
+        for value in r.PUT:
           if getPath(request) == value.path:
             for v in request.reqHeader:
               if v.namelen == 0: break
@@ -89,11 +91,30 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
               response.mofuw_send(badRequest())
         notFound(response)
   of "DELETE":
-    if r.POST.len == 0:
+    if r.DELETE.len == 0:
       notFound(response)
     else:
       block searchRoute:
-        for value in r.POST:
+        for value in r.DELETE:
+          if getPath(request) == value.path:
+            for v in request.reqHeader:
+              if v.namelen == 0: break
+
+              if not(($(v.name))[0 .. v.namelen] == "Content-Length"):
+                continue
+              else:
+                request.reqBodyLen = parseInt(($(v.value))[0 .. v.valuelen])
+                request.reqBody = ($(request.reqBody))[0 .. request.reqBodyLen - 1]
+                value.cb(request, response)
+                break searchRoute
+              response.mofuw_send(badRequest())
+        notFound(response)
+  of "PATCH":
+    if r.PATCH.len == 0:
+      notFound(response)
+    else:
+      block searchRoute:
+        for value in r.PATCH:
           if getPath(request) == value.path:
             for v in request.reqHeader:
               if v.namelen == 0: break
