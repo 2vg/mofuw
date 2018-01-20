@@ -10,6 +10,7 @@ const
   kByte* = 1024
   mByte* = 1024 * kByte
 
+  defaultBufferSize = 64 * kByte
   maxBodySize = 1 * mByte
 
 type
@@ -31,7 +32,7 @@ type
 
 var
   callback* {.threadvar.}: Callback
-  bufSize*  {.threadvar.}: int
+  bufferSize*  {.threadvar.}: int
 
 proc getMethod*(req: ptr mofuwReq): string {.inline.} =
   result = ($(req.reqLine.method))[0 .. req.reqLine.methodLen]
@@ -43,7 +44,7 @@ proc getReqBody*(req: ptr mofuwReq): string {.inline.} =
   result = $req.reqBody
 
 proc setBufferSize*(size: int) {.inline.} = 
-  bufSize = size
+  bufferSize = size
 
 proc after_close(handle: ptr uv_handle_t) {.cdecl.} =
   dealloc(handle)
@@ -52,8 +53,8 @@ proc free_response(req: ptr uv_write_t, status: cint) {.cdecl.} =
   dealloc(req)
 
 proc buf_alloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} =
-  buf.base = cast[ptr char](alloc(1024))
-  buf.len = 1024
+  buf.base = cast[ptr char](alloc(bufferSize))
+  buf.len = bufferSize
 
 proc mofuw_send*(res: ptr mofuwRes, body: cstring) {.inline.}=
   res.body.base = cast[ptr char](body)
@@ -127,7 +128,7 @@ proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
 proc updateServerTime(handle: ptr uv_timer_t) {.cdecl.}=
   httputils.updateServerTime()
 
-proc mofuw_init*(t: tuple[port: int, backlog: int, cb: Callback]) =
+proc mofuw_init*(t: tuple[port: int, backlog: int, cb: Callback, bufSize: int]) =
   var
     server: ptr uv_tcp_t = cast[ptr uv_tcp_t](alloc(sizeof(uv_tcp_t)))
     loop: ptr uv_loop_t = cast[ptr uv_loop_t](alloc(sizeof(uv_loop_t)))
@@ -136,6 +137,8 @@ proc mofuw_init*(t: tuple[port: int, backlog: int, cb: Callback]) =
     fd: uv_os_fd_t
 
   callback = t.cb
+
+  setBufferSize(t.bufSize)
 
   discard uv_loop_init(loop)
 
@@ -163,15 +166,15 @@ proc mofuw_init*(t: tuple[port: int, backlog: int, cb: Callback]) =
 
   discard uv_run(loop, UV_RUN_DEFAULT)
 
-proc mofuwRUN*(port: int = 8080, backlog: int = 128) =
-  var th: Thread[tuple[port: int, backlog: int, cb: Callback]]
+proc mofuwRUN*(port: int = 8080, backlog: int = 128, buf: int = defaultBufferSize) =
+  var th: Thread[tuple[port: int, backlog: int, cb: Callback, bufSize: int]]
 
   if callback == nil:
     raise newException(Exception, "callback is nil.")
 
   for i in 0 ..< countProcessors():
-    createThread[tuple[port: int, backlog: int, cb: Callback]](
-      th, mofuw_init, (port, backlog, callback)
+    createThread[tuple[port: int, backlog: int, cb: Callback, bufSize: int]](
+      th, mofuw_init, (port, backlog, callback, buf)
     )
     #break
 
