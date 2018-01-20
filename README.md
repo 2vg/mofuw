@@ -77,11 +77,11 @@ please be careful when using.
 ## Usage
 see [example](https://github.com/2vg/mofuw/blob/master/example)
 
-**Now support GET method only**
+**Now support GET, POST, PUT, DELETE, OPTIONS method only**
 
 ## Todo
 - [x] ~~header make proc(?)~~
 - [ ] Cache (memory buffer ? collab with redis ?)
 - [ ] File response (will soon complete)
-- [ ] routing (now support GET only, want to finish it early)
+- [ ] routing (now support GET, POST, PUT, DELETE, OPTIONS only, want to finish it early)
 - [x] ~~multi-thread (this need ?)~~
