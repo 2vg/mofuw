@@ -37,6 +37,9 @@ proc mofuwPUT*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mof
 proc mofuwDELETE*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
   r.DELETE.add(router_t(path: path, cb: cb))
 
+proc mofuwPATCH*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
+  r.PATCH.add(router_t(path: path, cb: cb))
+
 proc mofuwOPTIONS*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
   r.OPTIONS.add(router_t(path: path, cb: cb))
 
