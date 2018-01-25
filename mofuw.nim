@@ -46,13 +46,13 @@ proc getReqBody*(req: ptr mofuwReq): string {.inline.} =
 proc setBufferSize*(size: int) {.inline.} = 
   bufferSize = size
 
-proc after_close(handle: ptr uv_handle_t) {.cdecl.} =
+proc afterClose(handle: ptr uv_handle_t) {.cdecl.} =
   dealloc(handle)
 
-proc free_response(req: ptr uv_write_t, status: cint) {.cdecl.} =
+proc freeResponse(req: ptr uv_write_t, status: cint) {.cdecl.} =
   dealloc(req)
 
-proc buf_alloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} =
+proc bufAlloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} =
   buf.base = cast[ptr char](alloc(bufferSize))
   buf.len = bufferSize
 
@@ -60,7 +60,7 @@ proc mofuw_send*(res: ptr mofuwRes, body: cstring) {.inline.}=
   res.body.base = cast[ptr char](body)
   res.body.len = body.len
 
-  if not uv_write(res.res, cast[ptr uv_stream_t](res.handle), res.body.addr, 1, free_response) == 0:
+  if not uv_write(res.res, cast[ptr uv_stream_t](res.handle), res.body.addr, 1, freeResponse) == 0:
     dealloc(res.res)
     return
 
@@ -72,12 +72,12 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   if nread == -4095:
     dealloc(buf.base)
-    uv_close(cast[ptr uv_handle_t](stream), after_close)
+    uv_close(cast[ptr uv_handle_t](stream), afterClose)
     return
 
   elif nread < 0:
     dealloc(buf.base)
-    uv_close(cast[ptr uv_handle_t](stream), after_close)
+    uv_close(cast[ptr uv_handle_t](stream), afterClose)
     return
 
   var
@@ -97,7 +97,7 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
   if r <= 0:
     notFound(response)
     dealloc(buf.base)
-    uv_close(cast[ptr uv_handle_t](stream), after_close)
+    uv_close(cast[ptr uv_handle_t](stream), afterClose)
     return
 
   request.reqBody = cast[cstring](cast[int](buf.base) + r)
@@ -124,13 +124,13 @@ proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
   if not uv_accept(server, client) == 0:
     return
 
-  if not uv_read_start(client, buf_alloc, read_cb) == 0:
+  if not uv_read_start(client, bufAlloc, read_cb) == 0:
     return
 
 proc updateServerTime(handle: ptr uv_timer_t) {.cdecl.}=
   httputils.updateServerTime()
 
-proc mofuw_init(t: tuple[port: int, backlog: int, cb: Callback, bufSize: int]) =
+proc mofuwInit(t: tuple[port: int, backlog: int, cb: Callback, bufSize: int]) =
   var
     server: ptr uv_tcp_t = cast[ptr uv_tcp_t](alloc(sizeof(uv_tcp_t)))
     loop: ptr uv_loop_t = cast[ptr uv_loop_t](alloc(sizeof(uv_loop_t)))
@@ -176,7 +176,7 @@ proc mofuwRUN*(port: int = 8080, backlog: int = 128, buf: int = defaultBufferSiz
 
   for i in 0 ..< countProcessors():
     createThread[tuple[port: int, backlog: int, cb: Callback, bufSize: int]](
-      th, mofuw_init, (port, backlog, callback, buf)
+      th, mofuwInit, (port, backlog, callback, buf)
     )
 
   joinThread(th)
