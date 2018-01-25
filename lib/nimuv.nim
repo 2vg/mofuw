@@ -1,8 +1,9 @@
+import nativesockets
+
 when defined(windows):
   # need --cincludes:'uv.h path'
 
   import winlean
-  export SockAddrIn, SockAddrIn6, SockAddr, AddrInfo
 
   const libuv = "win/libuv.dll"
 
@@ -15,11 +16,9 @@ when defined(windows):
       base* {.importc.}: ptr char
       len* {.importc.}: ULONG
 
-    uv_os_sock_t* {.importc.} = winlean.SocketHandle
+    uv_os_sock_t* {.importc.} = SocketHandle
     uv_os_fd_t* {.importc.} = winlean.Handle
 else:
-  import posix
-  export SockAddrIn, SockAddrIn6, SockAddr, AddrInfo
 
   const libuv = "/usr/local/lib/libuv.so"
 
@@ -32,7 +31,7 @@ else:
       base* {.importc.}: ptr char
       len* {.importc.}: csize
 
-    uv_os_sock_t* {.importc.} = posix.SocketHandle
+    uv_os_sock_t* {.importc.} = SocketHandle
     uv_os_fd_t* {.importc.} = cint
 
 #
@@ -111,7 +110,7 @@ type
     UV_UDP_SEND,
     UV_FS,
     UV_WORK,
-    UV_GETADDRINFO,
+    UV_GETAddrinfo,
     UV_GETNAMEINFO,
     UV_REQ_TYPE_PRIVATE,
     UV_REQ_TYPE_MAX
@@ -462,19 +461,19 @@ type
   ##################
   #     uv_dns     #
   ##################
-  uv_getaddrinfo_t* {.pure, final, importc, header: "uv.h".} = object
+  uv_getAddrinfo_t* {.pure, final, importc, header: "uv.h".} = object
     data* {.importc.}: pointer
     `type`* {.importc.} : uv_req_type
     loop* {.importc.}: ptr uv_loop_t
-    addrinfo* {.importc.}: ptr AddrInfo
+    Addrinfo* {.importc.}: ptr Addrinfo
 
-  uv_getaddrinfo_cb* = proc(req: ptr uv_getaddrinfo_t, status: cint, res: ptr AddrInfo): void {.cdecl.}
+  uv_getAddrinfo_cb* = proc(req: ptr uv_getAddrinfo_t, status: cint, res: ptr Addrinfo): void {.cdecl.}
 
   uv_getnameinfo_t* {.pure, final, importc, header: "uv.h".} = object
     data* {.importc.}: pointer
     `type`* {.importc.} : uv_req_type
     loop* {.importc.}: ptr uv_loop_t
-    addrinfo* {.importc.}: ptr AddrInfo
+    Addrinfo* {.importc.}: ptr Addrinfo
 
   uv_getnameinfo_cb* = proc(req: ptr uv_getnameinfo_t, status: cint, hostname: cstring, service: cstring): void {.cdecl.}
 
@@ -561,12 +560,12 @@ type
     cpu_times* {.importc.}: uv_cpu_times_s
 
   address* {.pure, final, union, importc, header: "uv.h".} = object
-    address4* {.importc.}: SockAddrIn
-    address6* {.importc.}: SockAddrIn6
+    address4* {.importc.}: Sockaddr_in
+    address6* {.importc.}: Sockaddr_in6
 
   netmask* {.pure, final, union, importc, header: "uv.h".} = object
-    netmask4* {.importc.}: SockAddrIn
-    netmask6* {.importc.}: SockAddrIn6
+    netmask4* {.importc.}: Sockaddr_in
+    netmask6* {.importc.}: Sockaddr_in6
 
   uv_interface_address_t {.pure, final, importc, header: "uv.h".} = object
     name* {.importc.}: cstring
@@ -1149,10 +1148,10 @@ proc uv_queue_work*(loop: ptr uv_loop_t, req: ptr uv_work_t, work_cb: uv_work_cb
 ##################
 #     uv_dns     #
 ##################
-proc uv_getaddrinfo*(loop: ptr uv_loop_t, req: ptr uv_getaddrinfo_t, getaddrinfo_cb: uv_getaddrinfo_cb, node: cstring, service: cstring, hints: ptr AddrInfo): cint
+proc uv_getAddrinfo*(loop: ptr uv_loop_t, req: ptr uv_getAddrinfo_t, getAddrinfo_cb: uv_getAddrinfo_cb, node: cstring, service: cstring, hints: ptr Addrinfo): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_freeaddrinfo*(ai: ptr AddrInfo): void
+proc uv_freeAddrinfo*(ai: ptr Addrinfo): void
   {.importc, cdecl, dynlib: libuv.}
 
 proc uv_getnameinfo*(loop: ptr uv_loop_t, req: ptr uv_getnameinfo_t, getnameinfo_cb: uv_getnameinfo_cb, `addr`: ptr SockAddr, flags: cint): cint
@@ -1338,16 +1337,16 @@ proc uv_free_interface_addresses*(adresses: ptr uv_interface_address_t, count: p
 proc uv_loadavg*(arg: array[3, cdouble]): void
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_ip4_addr*(ip: cstring, port: cint, `addr`: ptr SockAddrIn): cint
+proc uv_ip4_addr*(ip: cstring, port: cint, `addr`: ptr Sockaddr_in): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_ip6_addr*(ip: cstring, port: cint, `addr`: ptr SockAddrIn6): cint
+proc uv_ip6_addr*(ip: cstring, port: cint, `addr`: ptr Sockaddr_in6): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_ip4_name*(src: ptr SockAddrIn, dst: cstring, size: csize): cint
+proc uv_ip4_name*(src: ptr Sockaddr_in, dst: cstring, size: csize): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_ip6_name*(src: ptr SockAddrIn6, dst: cstring, size: csize): cint
+proc uv_ip6_name*(src: ptr Sockaddr_in6, dst: cstring, size: csize): cint
   {.importc, cdecl, dynlib: libuv.}
 
 proc uv_inet_ntop*(af: cint, src: pointer, dst: cstring, size: csize): cint
