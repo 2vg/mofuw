@@ -642,6 +642,12 @@ proc uv_walk*(loop: ptr uv_loop_t, walk_cb: uv_walk_cb, arg: pointer): cint
 proc uv_loop_fork*(loop: ptr uv_loop_t): cint
   {.importc, cdecl, dynlib: libuv.}
 
+proc uv_loop_get_data*(loop: ptr uv_loop_t): pointer
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_loop_set_data*(loop: ptr uv_loop_t, data: pointer): pointer
+  {.importc, cdecl, dynlib: libuv.}
+
 #####################
 #     uv_handle     #
 #####################
@@ -675,6 +681,21 @@ proc uv_recv_buffer_size*(handle: ptr uv_handle_t, value: ptr cint): cint
 proc uv_fileno*(handle: ptr uv_handle_t, fd: ptr uv_os_fd_t): cint
   {.importc, cdecl, dynlib: libuv.}
 
+proc uv_handle_get_loop*(handle: ptr uv_handle_t): ptr uv_loop_t
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_handle_get_data*(handle: ptr uv_handle_t): pointer
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_handle_set_data*(handle: ptr uv_handle_t, data: pointer): pointer
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_handle_get_type*(handle: ptr uv_handle_t): uv_handle_type
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_handle_type_name*(`type`: uv_handle_type): cstring
+  {.importc, cdecl, dynlib: libuv.}
+
 ##################
 #     uv_req     #
 ##################
@@ -682,6 +703,18 @@ proc uv_cancel*(req: ptr uv_req_t): cint
   {.importc, cdecl, dynlib: libuv.}
 
 proc uv_req_size*(req: uv_req_t): csize
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_req_get_data*(req: ptr uv_req_t): pointer
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_req_set_data*(req: ptr uv_req_t, data: pointer): pointer
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_req_get_type*(req: ptr uv_req_t): uv_req_type
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_req_type_name*(`type`: uv_req_type): cstring
   {.importc, cdecl, dynlib: libuv.}
 
 ####################
@@ -795,6 +828,9 @@ proc uv_process_kill*(handle: ptr uv_process_t, signum: cint): cint
 proc uv_kill*(pid: cint, signum: cint): cint
   {.importc, cdecl, dynlib: libuv.}
 
+proc uv_process_get_pid*(handle: ptr uv_process_t): uv_pid_t
+  {.importc, cdecl, dynlib:libuv.}
+
 #####################
 #     uv_stream     #
 #####################
@@ -830,6 +866,9 @@ proc uv_is_writable*(handle: ptr uv_stream_t): cint
 
 proc uv_stream_set_blocking*(handle: ptr uv_stream_t, blocking: cint): cint
   {.importc, cdecl, dynlib: libuv.}
+
+proc uv_stream_get_write_queue_size*(stream: ptr uv_stream_t): csize
+  {.importc, cdecl, dynlib:libuv.}
 
 ##################
 #     uv_tcp     #
@@ -953,6 +992,12 @@ proc uv_udp_try_send*(handle: ptr uv_udp_t, bufs: ptr uv_buf_t, nbufs: cuint, `a
 
 proc uv_udp_recv_start*(handle: ptr uv_udp_t, alloc_cb: uv_alloc_cb, recv_cb: uv_udp_recv_cb): cint
   {.importc, cdecl, dynlib: libuv.}
+
+proc uv_udp_get_send_queue_size*(handle: ptr uv_udp_t): csize
+  {.importc, cdecl, dynlib:libuv.}
+
+proc uv_udp_get_send_queue_count*(handle: ptr uv_udp_t): csize
+  {.importc, cdecl, dynlib:libuv.}
 
 #######################
 #     uv_fs_event     #
@@ -1078,6 +1123,21 @@ proc uv_fs_chown*(loop: ptr uv_loop_t, req: ptr uv_fs_t, path: cstring, uid: uv_
   {.importc, cdecl, dynlib: libuv.}
 
 proc uv_fs_chown*(loop: ptr uv_loop_t, req: ptr uv_fs_t, file: uv_file, uid: uv_uid_t, gid: uv_gid_t, cb: uv_fs_cb): cint
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_fs_get_type*(req: ptr uv_fs_t): uv_fs_type
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_fs_get_result*(req: ptr uv_fs_t): cssize
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_fs_get_ptr*(req: ptr uv_fs_t): pointer
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_fs_get_path*(req: ptr uv_fs_t): cstring
+  {.importc, cdecl, dynlib: libuv.}
+
+proc uv_fs_get_statbuf*(req: ptr uv_fs_t): ptr uv_stat_t
   {.importc, cdecl, dynlib: libuv.}
 
 ###################

@@ -1,10 +1,10 @@
 #!/bin/sh
 
-wget https://dist.libuv.org/dist/v1.18.0/libuv-v1.18.0.tar.gz
+wget https://dist.libuv.org/dist/v1.19.0/libuv-v1.19.0.tar.gz
 
-tar xf libuv-v1.18.0.tar.gz
+tar xf libuv-v1.19.0.tar.gz
 
-cd libuv-v1.18.0
+cd libuv-v1.19.0
 
 sh autogen.sh
 
@@ -12,7 +12,7 @@ sh autogen.sh
 
 make
 
-sudo make install
+make install
 
 cd ../
 

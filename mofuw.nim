@@ -31,7 +31,7 @@ type
   Callback* = proc(req: ptr mofuwReq, res: ptr mofuwRes)
 
 var
-  callback* {.threadvar.}: Callback
+  callback*    {.threadvar.}: Callback
   bufferSize*  {.threadvar.}: int
 
 proc getMethod*(req: ptr mofuwReq): string {.inline.} =
@@ -74,6 +74,7 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
     dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
     return
+
   elif nread < 0:
     dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), after_close)
@@ -114,7 +115,8 @@ proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
   if not status == 0:
     echo "error: ", uv_err_name(status), uv_strerror(status), "\n"
 
-  var client = cast[ptr uv_stream_t](alloc(sizeof(uv_tcp_t)))
+  var
+    client = cast[ptr uv_stream_t](alloc(sizeof(uv_tcp_t)))
 
   if not uv_tcp_init(server.loop, cast[ptr uv_tcp_t](client)) == 0:
     return
@@ -128,7 +130,7 @@ proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
 proc updateServerTime(handle: ptr uv_timer_t) {.cdecl.}=
   httputils.updateServerTime()
 
-proc mofuw_init*(t: tuple[port: int, backlog: int, cb: Callback, bufSize: int]) =
+proc mofuw_init(t: tuple[port: int, backlog: int, cb: Callback, bufSize: int]) =
   var
     server: ptr uv_tcp_t = cast[ptr uv_tcp_t](alloc(sizeof(uv_tcp_t)))
     loop: ptr uv_loop_t = cast[ptr uv_loop_t](alloc(sizeof(uv_loop_t)))
@@ -176,6 +178,5 @@ proc mofuwRUN*(port: int = 8080, backlog: int = 128, buf: int = defaultBufferSiz
     createThread[tuple[port: int, backlog: int, cb: Callback, bufSize: int]](
       th, mofuw_init, (port, backlog, callback, buf)
     )
-    #break
 
   joinThread(th)
