@@ -5,15 +5,16 @@ import lib/httputils
 import json
 import db_sqlite
 import random
+import os
 
 let
   router = newMofuwRouter()
   db = open("example/todo-sqlite/todo.db", nil, nil, nil)
 
 if not fileExists("example/todo-sqlite/todo.db"):
-　　db.exec(sql("""create table todo (
- 　　              Id   INTEGER PRIMARY KEY,
-   　　            todo TEXT)"""))
+  db.exec(sql("""create table todo (
+ 　              Id   INTEGER PRIMARY KEY,
+ 　　            todo TEXT)"""))
 
 callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
   mofuwRouting(router, req, res)
