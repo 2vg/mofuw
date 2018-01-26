@@ -52,5 +52,9 @@ router.mofuwGET("/plaintext", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
 )
 
 # event loop start.
-# mofuwRUN(PORT(= default is 8080), BACKLOG(= default is OS's SOMAXCONN), BUFFERSIZE(= default is 64KiB))
+# mofuwRUN(
+#   PORT(= default is 8080),
+#   BACKLOG(= default is OS's SOMAXCONN),
+#   BUFFERSIZE(= default is 64KiB)
+# )
 mofuwRUN(8080, 128, 2048)

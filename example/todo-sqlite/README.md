@@ -3,14 +3,12 @@
 ## require
 - nim (devel)
 - libuv(1.19)
-- sqlite db(see app.nim and, if want create db, comment out.)
 - node.js(mofuw cant file serve so need file serve app)
 
 ## usage
 need like tmux or multi tab terminal.
 
 ```nim
-cd public
 npm i
 node app
 cd ../
