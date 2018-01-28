@@ -17,6 +17,8 @@ see this benchmark result.
 
 mofuw is more faster than [tokio-minihttp](https://github.com/tokio-rs/tokio-minihttp).
 
+Update: changed routing match is using regex so performance was down but a bit faster than tokio-mini yet.
+
 #### my server spec:
 
 - OS: Arch Linux 4.13.8-1-ARCH
@@ -77,11 +79,14 @@ please be careful when using.
 ## Usage
 see [example](https://github.com/2vg/mofuw/blob/master/example)
 
-**Now support GET, POST, PUT, DELETE, OPTIONS method only**
+**Now support GET, POST, PATCH, PUT, DELETE, OPTIONS method only**
 
 ## Todo
 - [x] ~~header make proc(?)~~
 - [ ] Cache (memory buffer ? collab with redis ?)
 - [ ] File response (will soon complete)
-- [ ] routing (now support GET, POST, PUT, DELETE, OPTIONS only, want to finish it early)
+- [ ] routing (now support GET, POST, PATCH, PUT, DELETE, OPTIONS only, want to finish it early)
 - [x] ~~multi-thread (this need ?)~~
+
+## Special Thanks
+- [jester](https://github.com/dom96/jester) (using jester's pattern utils)
