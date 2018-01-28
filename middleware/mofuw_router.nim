@@ -1,6 +1,9 @@
 import mofuw
 import lib/httputils
+import lib/jesterPatterns
 import strutils
+
+export jesterPatterns.`[]`
 
 type
   router = ref object
@@ -12,7 +15,7 @@ type
     OPTIONS: seq[router_t]
 
   router_t = object
-    path: string
+    pattern: Pattern
     cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)
 
 proc newMofuwRouter*(): router =
@@ -26,22 +29,22 @@ proc newMofuwRouter*(): router =
   )
 
 proc mofuwGET*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
-  r.GET.add(router_t(path: path, cb: cb))
+  r.GET.add(router_t(pattern: parsePattern(path), cb: cb))
 
 proc mofuwPOST*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
-  r.POST.add(router_t(path: path, cb: cb))
+  r.POST.add(router_t(pattern: parsePattern(path), cb: cb))
 
 proc mofuwPUT*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
-  r.PUT.add(router_t(path: path, cb: cb))
+  r.PUT.add(router_t(pattern: parsePattern(path), cb: cb))
   
 proc mofuwDELETE*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
-  r.DELETE.add(router_t(path: path, cb: cb))
+  r.DELETE.add(router_t(pattern: parsePattern(path), cb: cb))
 
 proc mofuwPATCH*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
-  r.PATCH.add(router_t(path: path, cb: cb))
+  r.PATCH.add(router_t(pattern: parsePattern(path), cb: cb))
 
 proc mofuwOPTIONS*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
-  r.OPTIONS.add(router_t(path: path, cb: cb))
+  r.OPTIONS.add(router_t(pattern: parsePattern(path), cb: cb))
 
 proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.inline.}=
   case getMethod(request)
@@ -51,7 +54,8 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
     else:
       block searchRoute:
         for value in r.GET:
-          if getPath(request) == value.path:
+          if match(value.pattern, getPath(request)).matched:
+            request.params = match(value.pattern, getPath(request)).params
             value.cb(request, response)
             break searchRoute
         notFound(response)
@@ -61,7 +65,8 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
     else:
       block searchRoute:
         for value in r.POST:
-          if getPath(request) == value.path:
+          if match(value.pattern, getPath(request)).matched:
+            request.params = match(value.pattern, getPath(request)).params
             for v in request.reqHeader:
               if v.namelen == 0: break
 
@@ -80,7 +85,8 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
     else:
       block searchRoute:
         for value in r.PUT:
-          if getPath(request) == value.path:
+          if match(value.pattern, getPath(request)).matched:
+            request.params = match(value.pattern, getPath(request)).params
             for v in request.reqHeader:
               if v.namelen == 0: break
 
@@ -99,7 +105,8 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
     else:
       block searchRoute:
         for value in r.DELETE:
-          if getPath(request) == value.path:
+          if match(value.pattern, getPath(request)).matched:
+            request.params = match(value.pattern, getPath(request)).params
             for v in request.reqHeader:
               if v.namelen == 0: break
 
@@ -118,7 +125,8 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
     else:
       block searchRoute:
         for value in r.PATCH:
-          if getPath(request) == value.path:
+          if match(value.pattern, getPath(request)).matched:
+            request.params = match(value.pattern, getPath(request)).params
             for v in request.reqHeader:
               if v.namelen == 0: break
 
@@ -137,7 +145,8 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
     else:
       block searchRoute:
         for value in r.OPTIONS:
-          if getPath(request) == value.path:
+          if match(value.pattern, getPath(request)).matched:
+            request.params = match(value.pattern, getPath(request)).params
             value.cb(request, response)
             break searchRoute
         notFound(response)
