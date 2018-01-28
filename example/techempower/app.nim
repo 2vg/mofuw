@@ -51,6 +51,14 @@ router.mofuwGET("/plaintext", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
   ))
 )
 
+router.mofuwGET("/user/@name", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+  res.mofuw_send(makeResp(
+    HTTP200,
+    "text/plain",
+    "Hello, " & req.params["name"] & "!"
+  ))
+)
+
 # event loop start.
 # mofuwRUN(
 #   PORT(= default is 8080),
