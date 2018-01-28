@@ -1,4 +1,4 @@
-import nativesockets
+import nativesockets, strtabs
 
 from osproc import countProcessors
 
@@ -21,6 +21,7 @@ type
     reqHeaderAddr: ptr mofuwReq.reqHeader
     reqBody*: cstring
     reqBodyLen*: int
+    params*: StringTableRef
 
   mofuwRes* = object
     handle: ptr uv_handle_t
