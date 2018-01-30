@@ -17,7 +17,7 @@ see this benchmark result.
 
 mofuw is more faster than [tokio-minihttp](https://github.com/tokio-rs/tokio-minihttp).
 
-Update: changed routing match is using regex so performance was down but a bit faster than tokio-mini yet.
+Update: changed routing match is using hash table so performance was down but a bit faster than tokio-mini yet.
 
 #### my server spec:
 
