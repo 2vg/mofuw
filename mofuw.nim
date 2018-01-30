@@ -2,6 +2,8 @@ import nativesockets, strtabs
 
 from osproc import countProcessors
 
+from os import osLastError
+
 import lib/nimuv
 import lib/mofuparser
 import lib/httputils
@@ -19,9 +21,10 @@ type
     reqLine: HttpReq
     reqHeader*: array[48, headers]
     reqHeaderAddr: ptr mofuwReq.reqHeader
-    reqBody*: cstring
+    reqBody*: string
     reqBodyLen*: int
     params*: StringTableRef
+    tmp*: cstring
 
   mofuwRes* = object
     handle: ptr uv_handle_t
@@ -62,7 +65,6 @@ proc mofuw_send*(res: ptr mofuwRes, body: cstring) {.inline.}=
   res.body.len = body.len
 
   if not uv_write(res.res, cast[ptr uv_stream_t](res.handle), res.body.addr, 1, freeResponse) == 0:
-    dealloc(res.res)
     return
 
 proc notFound*(res: ptr mofuwRes) =
@@ -82,18 +84,42 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
     return
 
   var
-    req = mofuwReq()
-    request = addr(req)
+    req = mofuwReq(reqBody: "")
     res = mofuwRes()
+    request = addr(req)
     response = addr(res)
 
+  if nread == bufferSize:
+    var 
+      fd: uv_os_fd_t
+      buff: array[defaultBufferSize, char]
+
+    discard uv_fileno(cast[ptr uv_handle_t](stream), addr(fd))
+
+    request.reqBody.add($(buf.base))
+    request.reqBodyLen += nread
+
+    while true:
+      let r = recv(fd.SocketHandle, addr buff[0], bufferSize, 0)
+
+      if r == -1:
+        if osLastError().int in {EWOULDBLOCK, EAGAIN}:
+          break
+        dealloc(buf.base)
+        uv_close(cast[ptr uv_handle_t](stream), afterClose)
+        return
+
+      request.reqBody.add(addr(buff[0]))
+      request.reqBodyLen += r
+  else:
+    request.reqBody.add(($(buf.base))[0 .. nread])
+    request.reqBodyLen += nread
+
   request.reqHeaderAddr = request.reqHeader.addr
-
   response.handle = cast[ptr uv_handle_t](stream)
-
   response.res = cast[ptr uv_write_t](alloc(sizeof(uv_write_t)))
 
-  let r = mp_req(buf.base, request.reqLine, request.reqHeaderAddr)
+  let r = mp_req(addr(request.reqBody[0]), request.reqLine, request.reqHeaderAddr)
 
   if r <= 0:
     notFound(response)
@@ -101,15 +127,17 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
     uv_close(cast[ptr uv_handle_t](stream), afterClose)
     return
 
-  request.reqBody = cast[cstring](cast[int](buf.base) + r)
+  request.reqBodyLen -= r
+  request.reqBody = ($(cast[cstring](cast[int](addr(request.reqBody[0])) + r)))[0 .. request.reqBodyLen]
 
-  #if request.reqBodyLen > maxBodySize:
-  #  mofuw_send(response, bodyTooLarge())
-  #  dealloc(buf.base)
-  #  return
+  if request.reqBodyLen > maxBodySize:
+    mofuw_send(response, bodyTooLarge())
+    dealloc(buf.base)
+    return
 
   callback(request, response)
 
+  request.reqBody.setLen(0)
   dealloc(buf.base)
 
 proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
