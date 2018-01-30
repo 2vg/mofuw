@@ -73,8 +73,6 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
               if not(($(v.name))[0 .. v.namelen] == "Content-Length"):
                 continue
               else:
-                request.reqBodyLen = parseInt(($(v.value))[0 .. v.valuelen])
-                request.reqBody = ($(request.reqBody))[0 .. request.reqBodyLen - 1]
                 value.cb(request, response)
                 break searchRoute
               response.mofuw_send(badRequest())
@@ -93,8 +91,6 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
               if not(($(v.name))[0 .. v.namelen] == "Content-Length"):
                 continue
               else:
-                request.reqBodyLen = parseInt(($(v.value))[0 .. v.valuelen])
-                request.reqBody = ($(request.reqBody))[0 .. request.reqBodyLen - 1]
                 value.cb(request, response)
                 break searchRoute
               response.mofuw_send(badRequest())
@@ -113,8 +109,6 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
               if not(($(v.name))[0 .. v.namelen] == "Content-Length"):
                 continue
               else:
-                request.reqBodyLen = parseInt(($(v.value))[0 .. v.valuelen])
-                request.reqBody = ($(request.reqBody))[0 .. request.reqBodyLen - 1]
                 value.cb(request, response)
                 break searchRoute
               response.mofuw_send(badRequest())
@@ -133,8 +127,6 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
               if not(($(v.name))[0 .. v.namelen] == "Content-Length"):
                 continue
               else:
-                request.reqBodyLen = parseInt(($(v.value))[0 .. v.valuelen])
-                request.reqBody = ($(request.reqBody))[0 .. request.reqBodyLen - 1]
                 value.cb(request, response)
                 break searchRoute
               response.mofuw_send(badRequest())
