@@ -15,6 +15,10 @@ const
   defaultBufferSize = 64 * kByte
   maxBodySize = 1 * mByte
 
+var
+  S_IREAD {.importc, header: "<sys/stat.h>".}: cint
+  S_IWRITE {.importc, header: "<sys/stat.h>".}: cint
+
 type
   mofuwReq* = object
     handle: ptr uv_handle_t
@@ -35,6 +39,7 @@ type
   Callback* = proc(req: ptr mofuwReq, res: ptr mofuwRes)
 
 var
+  loop         {.threadvar.}: ptr uv_loop_t
   callback*    {.threadvar.}: Callback
   bufferSize*  {.threadvar.}: int
 
@@ -89,7 +94,10 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
     request = addr(req)
     response = addr(res)
 
-  if nread == bufferSize:
+  if nread != bufferSize:
+    request.reqBody.add(($(buf.base))[0 .. nread])
+    request.reqBodyLen += nread
+  else:
     var 
       fd: uv_os_fd_t
       buff: array[defaultBufferSize, char]
@@ -111,9 +119,6 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
       request.reqBody.add(addr(buff[0]))
       request.reqBodyLen += r
-  else:
-    request.reqBody.add(($(buf.base))[0 .. nread])
-    request.reqBodyLen += nread
 
   request.reqHeaderAddr = request.reqHeader.addr
   response.handle = cast[ptr uv_handle_t](stream)
@@ -162,10 +167,11 @@ proc updateServerTime(handle: ptr uv_timer_t) {.cdecl.}=
 proc mofuwInit(t: tuple[port: int, backlog: int, cb: Callback, bufSize: int]) =
   var
     server: ptr uv_tcp_t = cast[ptr uv_tcp_t](alloc(sizeof(uv_tcp_t)))
-    loop: ptr uv_loop_t = cast[ptr uv_loop_t](alloc(sizeof(uv_loop_t)))
     timer: ptr uv_timer_t = cast[ptr uv_timer_t](alloc(sizeof(uv_timer_t)))
     sockaddr: SockAddrIn
     fd: uv_os_fd_t
+
+  loop = cast[ptr uv_loop_t](alloc(sizeof(uv_loop_t)))
 
   callback = t.cb
 
