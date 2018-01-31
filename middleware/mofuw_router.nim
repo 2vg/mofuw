@@ -2,6 +2,7 @@ import mofuw
 import lib/httputils
 import lib/jesterPatterns
 import strutils
+import nre
 
 export jesterPatterns.`[]`
 
@@ -15,7 +16,9 @@ type
     OPTIONS: seq[router_t]
 
   router_t = object
+    path: string
     pattern: Pattern
+    isParams: bool
     cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)
 
 proc newMofuwRouter*(): router =
@@ -29,7 +32,10 @@ proc newMofuwRouter*(): router =
   )
 
 proc mofuwGET*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
-  r.GET.add(router_t(pattern: parsePattern(path), cb: cb))
+  if path.contains(re"@"):
+    r.GET.add(router_t(pattern: parsePattern(path), isParams: true, cb: cb))
+  else:
+    r.GET.add(router_t(path: path, isParams: false, cb: cb))
 
 proc mofuwPOST*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
   r.POST.add(router_t(pattern: parsePattern(path), cb: cb))
@@ -54,10 +60,15 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
     else:
       block searchRoute:
         for value in r.GET:
-          if match(value.pattern, getPath(request)).matched:
-            request.params = match(value.pattern, getPath(request)).params
-            value.cb(request, response)
-            break searchRoute
+          if value.isParams:
+            if match(value.pattern, getPath(request)).matched:
+              request.params = match(value.pattern, getPath(request)).params
+              value.cb(request, response)
+              break searchRoute
+          else:
+            if getPath(request) == value.path:
+              value.cb(request, response)
+              break searchRoute
         notFound(response)
   of "POST":
     if r.POST.len == 0:
