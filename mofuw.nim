@@ -15,10 +15,6 @@ const
   defaultBufferSize = 64 * kByte
   maxBodySize = 1 * mByte
 
-var
-  S_IREAD {.importc, header: "<sys/stat.h>".}: cint
-  S_IWRITE {.importc, header: "<sys/stat.h>".}: cint
-
 type
   mofuwReq* = object
     handle: ptr uv_handle_t
@@ -49,6 +45,14 @@ proc getMethod*(req: ptr mofuwReq): string {.inline.} =
 proc getPath*(req: ptr mofuwReq): string {.inline.} =
   result = ($(req.reqLine.path))[0 .. req.reqLine.pathLen]
 
+proc getCookie*(req: ptr mofuwReq): string {.inline.} =
+  for v in req.reqHeader:
+    if v.name == nil: break
+    if ($(v.name))[0 .. v.namelen] == "Cookie":
+      result = ($(v.value))[0 .. v.valuelen]
+      return
+  result = ""
+
 proc getReqBody*(req: ptr mofuwReq): string {.inline.} =
   result = $req.reqBody
 
@@ -76,8 +80,6 @@ proc notFound*(res: ptr mofuwRes) =
   mofuw_send(res, notFound())
 
 proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
-  #echo repr cast[cstring](buf.base)
-
   if nread == -4095:
     dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), afterClose)
