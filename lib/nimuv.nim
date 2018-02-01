@@ -110,7 +110,7 @@ type
     UV_UDP_SEND,
     UV_FS,
     UV_WORK,
-    UV_GETAddrinfo,
+    UV_GETADDRINFO,
     UV_GETNAMEINFO,
     UV_REQ_TYPE_PRIVATE,
     UV_REQ_TYPE_MAX
@@ -461,19 +461,19 @@ type
   ##################
   #     uv_dns     #
   ##################
-  uv_getAddrinfo_t* {.pure, final, importc, header: "uv.h".} = object
+  uv_getaddrinfo_t* {.pure, final, importc, header: "uv.h".} = object
     data* {.importc.}: pointer
     `type`* {.importc.} : uv_req_type
     loop* {.importc.}: ptr uv_loop_t
-    Addrinfo* {.importc.}: ptr Addrinfo
+    addrinfo* {.importc.}: ptr Addrinfo
 
-  uv_getAddrinfo_cb* = proc(req: ptr uv_getAddrinfo_t, status: cint, res: ptr Addrinfo): void {.cdecl.}
+  uv_getaddrinfo_cb* = proc(req: ptr uv_getaddrinfo_t, status: cint, res: ptr Addrinfo): void {.cdecl.}
 
   uv_getnameinfo_t* {.pure, final, importc, header: "uv.h".} = object
     data* {.importc.}: pointer
     `type`* {.importc.} : uv_req_type
     loop* {.importc.}: ptr uv_loop_t
-    Addrinfo* {.importc.}: ptr Addrinfo
+    addrinfo* {.importc.}: ptr Addrinfo
 
   uv_getnameinfo_cb* = proc(req: ptr uv_getnameinfo_t, status: cint, hostname: cstring, service: cstring): void {.cdecl.}
 
@@ -1148,10 +1148,10 @@ proc uv_queue_work*(loop: ptr uv_loop_t, req: ptr uv_work_t, work_cb: uv_work_cb
 ##################
 #     uv_dns     #
 ##################
-proc uv_getAddrinfo*(loop: ptr uv_loop_t, req: ptr uv_getAddrinfo_t, getAddrinfo_cb: uv_getAddrinfo_cb, node: cstring, service: cstring, hints: ptr Addrinfo): cint
+proc uv_getaddrinfo*(loop: ptr uv_loop_t, req: ptr uv_getaddrinfo_t, getaddrinfo_cb: uv_getaddrinfo_cb, node: cstring, service: cstring, hints: ptr Addrinfo): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_freeAddrinfo*(ai: ptr Addrinfo): void
+proc uv_freeaddrinfo*(ai: ptr Addrinfo): void
   {.importc, cdecl, dynlib: libuv.}
 
 proc uv_getnameinfo*(loop: ptr uv_loop_t, req: ptr uv_getnameinfo_t, getnameinfo_cb: uv_getnameinfo_cb, `addr`: ptr SockAddr, flags: cint): cint
