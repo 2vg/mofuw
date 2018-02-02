@@ -51,7 +51,7 @@ mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
 mofuwRUN() # default listening port: 8080
 ```
 
-W O W, super E A S Y !!!!!! AMAYZING !!!!!!!
+W O W, super E A S Y !!!!!! AMAZING !!!!!!!
 
 and...... hyper F A S T !!!!!!! YEAHHHHHHHHHHH.....
 
