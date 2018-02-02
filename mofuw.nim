@@ -8,12 +8,19 @@ import lib/nimuv
 import lib/mofuparser
 import lib/httputils
 
+export
+  httputils
+
 const
   kByte* = 1024
   mByte* = 1024 * kByte
 
   defaultBufferSize = 64 * kByte
   maxBodySize = 1 * mByte
+
+var
+  S_IREAD {.importc, header: "<sys/stat.h>".}: cint
+  S_IWRITE {.importc, header: "<sys/stat.h>".}: cint
 
 type
   mofuwReq* = object
