@@ -1,6 +1,5 @@
 import mofuw
 import middleware/mofuw_router
-import lib/httputils
 
 import json
 import db_sqlite

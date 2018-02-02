@@ -1,6 +1,5 @@
 import mofuw
 import middleware/mofuw_router
-import lib/httputils
 
 # if callback only, example this:
 mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
@@ -42,4 +41,4 @@ mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
 #   BACKLOG(= default is OS's SOMAXCONN),
 #   BUFFERSIZE(= default is 64KiB)
 # )
-mofuwRUN(8080, 128, 64)
+mofuwRUN(8080, 128, 512)

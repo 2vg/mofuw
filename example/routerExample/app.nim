@@ -1,10 +1,9 @@
 import mofuw
 import middleware/mofuw_router
-import lib/httputils
 
 # if you using router, router init and callback is this.
 var
-    router = newMofuwRouter()
+  router = newMofuwRouter()
   
 mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
   mofuwRouting(router, req, res)
