@@ -7,6 +7,58 @@
 
 > もふぅ ꒰ᐡ - ﻌ - ᐡ꒱ ♡ @2vg
 
+## Warning
+mofuw is now developping.
+
+please be careful when using.
+
+## Require
+- nim (nim-devel)
+- libuv (must installed ver 1.19.0)
+
+## Usage
+see [example](https://github.com/2vg/mofuw/blob/master/example)
+
+you want to ask how to build ? B U I L D ? hahaha, is joke ?
+
+mofuw is non need B U I L D.
+
+install is need only `git clone`.
+
+(sure, installed nim 0.17.3 and libuv 1.19)
+
+```sh
+git clone https://github.com/2vg/mofuw
+```
+
+you can use "import mofuw". this only.
+
+minimal example is this 👇
+
+```nim
+import mofuw
+
+mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+  if getPath(req) == "/":
+    res.mofuw_send(makeResp(
+      HTTP200,
+      "text/plain",
+      "Hello, World!"
+    ))
+  else:
+    res.mofuw_send(notFound())
+
+mofuwRUN() # default listening port: 8080
+```
+
+W O W, super E A S Y !!!!!! AMAYZING !!!!!!!
+
+and...... hyper F A S T !!!!!!! YEAHHHHHHHHHHH.....
+
+if you will using mofuw, you will be very surprised.
+
+**Now support GET, POST, PATCH, PUT, DELETE, OPTIONS method only**
+
 ## Feature
 - high-performance
 - low used memory
@@ -22,7 +74,7 @@ mofuw is more faster than [tokio-minihttp](https://github.com/tokio-rs/tokio-min
 
 Update: changed routing match is using hash table so performance was down but a bit faster than tokio-mini yet.
 
-#### my server spec:
+### my server spec:
 
 - OS: Arch Linux 4.13.8-1-ARCH
 - CPU: Intel core 2Duo T7700 2.40GHz 3 Core
@@ -41,9 +93,6 @@ this is a slightly old benchmark result of [techempower](https://www.techempower
 Update: this is latest techempower plaintext [result](https://www.techempower.com/benchmarks/previews/round15/#section=data-r15&hw=ph&test=plaintext)
 
 unchanged, **👑mofuw can aim at 1st place👑**.
-
-## example
-see [example](https://github.com/2vg/mofuw/blob/master/example)
 
 ## Why fast ?
 because using libuv, and using fast parser.
@@ -70,26 +119,12 @@ A. answer is **No**.
 
 I will not develop it yet, but it's probably not a distant future.
 
-## Warning
-mofuw is now developping.
-
-please be careful when using.
-
-## Require
-- nim (nim-devel)
-- libuv (must installed ver 1.19.0)
-
-## Usage
-see [example](https://github.com/2vg/mofuw/blob/master/example)
-
-**Now support GET, POST, PATCH, PUT, DELETE, OPTIONS method only**
-
 ## Todo
 - [x] ~~header make proc(?)~~
-- [ ] Cache (memory buffer ? collab with redis ?)
+- [x] ~~Cache (memory buffer ? collab with redis ?)~~ (maybe non need this.)
 - [ ] File response (will soon complete)
-- [ ] routing (now support GET, POST, PATCH, PUT, DELETE, OPTIONS only, want to finish it early)
+- [x] routing (now support GET, POST, PATCH, PUT, DELETE, OPTIONS only, want to finish it early)
 - [x] ~~multi-thread (this need ?)~~
 
 ## Special Thanks
-- [jester](https://github.com/dom96/jester) (using jester's pattern utils)
+- [jester](https://github.com/dom96/jester) (using jester's pattern and utils)
