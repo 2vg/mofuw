@@ -1,5 +1,5 @@
 import mofuw
-import middleware/mofuw_router
+import middleware/router/mofuwRouter
 
 # if you using router, router init and callback is this.
 var

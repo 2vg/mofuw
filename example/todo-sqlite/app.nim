@@ -1,5 +1,5 @@
 import mofuw
-import middleware/mofuw_router
+import middleware/router/mofuwRouter
 
 import json
 import db_sqlite
