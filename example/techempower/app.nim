@@ -1,5 +1,4 @@
 import mofuw
-import middleware/mofuw_router
 
 # if callback only, example this:
 mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
