@@ -12,7 +12,7 @@ proc setCookie*(name, value: string,
 
   result = ""
   result.add("Set-Cookie: ")
-  result.add(key)
+  result.add(name)
   result.add("=")
   result.add(value)
 
