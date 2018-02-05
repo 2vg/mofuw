@@ -1,4 +1,4 @@
-import times
+import times, httpcore
 
 const
   HTTP100* = "HTTP/1.1 100 Continue" & "\r\L"
@@ -70,6 +70,9 @@ var
 proc getServerTime*(): string =
   result = format(getTime().inZone(utc()), "ddd, dd MMM yyyy hh:mm:ss 'GMT'")
 
+proc getGlobalServerTime*(): string =
+  result = serverTime
+
 proc updateServerTime*() =
   serverTime = getServerTime()
 
@@ -91,6 +94,24 @@ proc makeResp*(statusLine: string, mime: string, body: string, charset: string =
   result.add("\r\LContent-Length: ")
   result.add(body.len)
   result.add("\r\L\r\L")
+  result.add(body)
+
+proc makeResp*(statusLine: string, headers: HttpHeaders, body: string): string {.inline.} =
+  result = ""
+  result.add(statusLine)
+
+  for k, v in headers:
+    if k == "Content-Length":
+      result.add("Content-Length: ")
+      result.add($(body.len))
+      result.add("\r\L")
+      continue
+    result.add(k)
+    result.add(": ")
+    result.add(v)
+    result.add("\r\L")
+
+  result.add("\r\L")
   result.add(body)
 
 proc addHeader*(body: string, headers: openArray[tuple[name: string, value: string]]): string {.inline.}=
