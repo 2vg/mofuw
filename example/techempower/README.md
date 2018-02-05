@@ -23,5 +23,4 @@ after build and exec,
 Listening port 8080.
 
 routing:
-  - /
   - /plaintext
