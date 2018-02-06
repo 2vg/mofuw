@@ -107,7 +107,7 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
     request.reqBody.add(($(buf.base))[0 .. nread])
     request.reqBodyLen += nread
   else:
-    var 
+    var
       fd: uv_os_fd_t
       buff: array[defaultBufferSize, char]
 
