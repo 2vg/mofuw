@@ -1,4 +1,4 @@
-import times, httpcore
+import times
 
 const
   HTTP100* = "HTTP/1.1 100 Continue" & "\r\L"
@@ -96,19 +96,20 @@ proc makeResp*(statusLine: string, mime: string, body: string, charset: string =
   result.add("\r\L\r\L")
   result.add(body)
 
-proc makeResp*(statusLine: string, headers: HttpHeaders, body: string): string {.inline.} =
-  result = ""
-  result.add(statusLine)
+proc makeResp*(statusLine: string, headers: openArray[tuple[name: string, value: string]], mime: string, body: string, charset: string = "UTF-8"): string {.inline.}=
+  result = makeRespNoBody(statusLine)
+  result.add("Content-Type: ")
+  result.add(mime)
+  result.add("; charset=")
+  result.add(charset)
+  result.add("\r\LContent-Length: ")
+  result.add(body.len)
+  result.add("\r\L")
 
-  for k, v in headers:
-    if k == "Content-Length":
-      result.add("Content-Length: ")
-      result.add($(body.len))
-      result.add("\r\L")
-      continue
-    result.add(k)
+  for v in headers:
+    result.add(v.name)
     result.add(": ")
-    result.add(v)
+    result.add(v.value)
     result.add("\r\L")
 
   result.add("\r\L")
