@@ -1,4 +1,4 @@
-import sysrand, random, sequtils
+import sysrandom, random, sequtils
 
 randomize()
 
