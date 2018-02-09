@@ -10,7 +10,7 @@ proc setCookie*(name, value: string,
                 expires = "", maxAges = "",
                 domain = "", path = "",
                 secure = false, httpOnly = false):
-                tuple[name: string, value: string] =
+                tuple[name, value, session: string] =
 
   var session = ""
 
@@ -36,13 +36,13 @@ proc setCookie*(name, value: string,
   if httpOnly:
     session.add("; HttpOnly")
 
-  result = ("Set-Cookie", session)
+  result = ("Set-Cookie", session, value)
 
 proc setAuth*(name, value: string,
               expires = "", maxAges = "",
               domain = "", path = "",
               secure = false, httpOnly = true):
-              tuple[name: string, value: string] =
+              tuple[name, value, session: string] =
 
   result = setCookie(
     name,
@@ -63,7 +63,7 @@ proc getSession*(cookies: StringTableRef): string =
     return ""
   return cookies[sessionName]
 
-proc genSessionCookie*(): tuple[name: string, value: string] =
+proc genSessionCookie*(): tuple[name, value, session: string] =
   setAuth(sessionName, genSessionString())
 
 when isMainModule:
