@@ -78,9 +78,7 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
         for value in r.POST:
           if match(value.pattern, getPath(request)).matched:
             request.params = match(value.pattern, getPath(request)).params
-            for v in request.reqHeader:
-              if v.namelen == 0: break
-
+            for v in request.reqLine.headerLen:
               if not(($(v.name))[0 .. v.namelen] == "Content-Length"):
                 continue
               else:
@@ -96,9 +94,7 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
         for value in r.PUT:
           if match(value.pattern, getPath(request)).matched:
             request.params = match(value.pattern, getPath(request)).params
-            for v in request.reqHeader:
-              if v.namelen == 0: break
-
+            for v in request.reqLine.headerLen:
               if not(($(v.name))[0 .. v.namelen] == "Content-Length"):
                 continue
               else:
@@ -114,9 +110,7 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
         for value in r.DELETE:
           if match(value.pattern, getPath(request)).matched:
             request.params = match(value.pattern, getPath(request)).params
-            for v in request.reqHeader:
-              if v.namelen == 0: break
-
+            for v in request.reqLine.headerLen:
               if not(($(v.name))[0 .. v.namelen] == "Content-Length"):
                 continue
               else:
@@ -132,9 +126,7 @@ proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.i
         for value in r.PATCH:
           if match(value.pattern, getPath(request)).matched:
             request.params = match(value.pattern, getPath(request)).params
-            for v in request.reqHeader:
-              if v.namelen == 0: break
-
+            for v in request.reqLine.headerLen:
               if not(($(v.name))[0 .. v.namelen] == "Content-Length"):
                 continue
               else:
