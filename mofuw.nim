@@ -53,7 +53,8 @@ proc getPath*(req: ptr mofuwReq): string {.inline.} =
   result = ($(req.reqLine.path))[0 .. req.reqLine.pathLen]
 
 proc getCookie*(req: ptr mofuwReq): string {.inline.} =
-  for v in req.reqLine.headerLen:
+  for v in req.reqHeader:
+    if v.name == nil: break
     if ($(v.name))[0 .. v.namelen] == "Cookie":
       result = ($(v.value))[0 .. v.valuelen]
       return
