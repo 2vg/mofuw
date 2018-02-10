@@ -16,6 +16,17 @@ please be careful when using.
 - nim (nim-devel)
 - libuv (must installed ver 1.19.0)
 
+## Setup
+before mofuw install, 
+
+need Nim-devel and libuv 1.19 setup.
+
+```shell
+sh setup.sh
+```
+
+after setup, need add /bin directory path to PATH.
+
 ## Usage
 see [example](https://github.com/2vg/mofuw/blob/master/example)
 
@@ -25,7 +36,7 @@ mofuw is non need B U I L D.
 
 install is need only `git clone`.
 
-(sure, installed nim 0.17.3 and libuv 1.19)
+(sure, installed nim 0.17.3 and libuv 1.19. see [setup](https://github.com/2vg/mofuw/blob/master/README.md#setup) section.)
 
 ```sh
 git clone https://github.com/2vg/mofuw
