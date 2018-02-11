@@ -83,6 +83,8 @@ type
 proc doRead(fs: ptr uv_fs_t) {.cdecl.} =
   var
     r = fs.result
+    fsdata = cast[ptr uv_fs_t](fs.data)
+    data = cast[ptr dataObj](fsdata.data)
     fsClose: uv_fs_t
 
   #echo r
@@ -93,31 +95,31 @@ proc doRead(fs: ptr uv_fs_t) {.cdecl.} =
   if r < 0:
     echo "error"
   elif r == 0:
-    discard uv_fs_close(loop, addr(fsClose),
-                        uv_file(cast[ptr uv_fs_t](fs.data).result), nil)
+    discard uv_fs_close(loop, addr(fsClose), uv_file(fsdata.result), nil)
   else:
     echo ""
-    cast[ptr dataObj](cast[ptr uv_fs_t](fs.data).data).
-      cb(cast[ptr dataObj](cast[ptr uv_fs_t](fs.data).data).buf.base)
+    data.cb(data.buf.base)
 
-  dealloc(cast[ptr dataObj](cast[ptr uv_fs_t](fs.data).data).buf.base)
+  dealloc(data.buf.base)
+  dealloc(data)
+  uv_fs_req_cleanup(fs)
 
 proc doOpen(fs: ptr uv_fs_t) {.cdecl.} =
-  echo repr fs.data
-
   var
     data: ptr dataObj = cast[ptr dataObj](fs.data)
     r = fs.result
 
   if r < 0:
     echo "error"
+    dealloc(data.buf.base)
+    dealloc(data)
     return
-
-  echo repr data
 
   var fsStat = cast[ptr uv_fs_t](alloc(sizeof(uv_fs_t)))
 
   if uv_fs_fstat(loop, fsStat, uv_file(r), nil) != 0:
+    dealloc(data.buf.base)
+    dealloc(data)
     uv_fs_req_cleanup(fsStat)
     return
 
