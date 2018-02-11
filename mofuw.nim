@@ -76,15 +76,13 @@ proc freeResponse(req: ptr uv_write_t, status: cint) {.cdecl.} =
 
 type
   dataObj = object
-    fscb: ptr proc(fs: ptr uv_fs_t) {.cdecl.}
     cb: proc(res: cstring)
     buf: uv_buf_t
 
 proc doRead(fs: ptr uv_fs_t) {.cdecl.} =
   var
-    r = fs.result
-    fsdata = cast[ptr uv_fs_t](fs.data)
-    data = cast[ptr dataObj](fsdata.data)
+    fd = fs.result
+    data = cast[ptr dataObj](fs.data)
     fsClose: uv_fs_t
 
   #echo r
@@ -92,22 +90,23 @@ proc doRead(fs: ptr uv_fs_t) {.cdecl.} =
 
   uv_fs_req_cleanup(fs)
 
-  if r < 0:
+  if fd < 0:
     echo "error"
-  elif r == 0:
-    discard uv_fs_close(loop, addr(fsClose), uv_file(fsdata.result), nil)
+  elif fd == 0:
+    discard uv_fs_close(loop, addr(fsClose), uv_file(fd), nil)
   else:
     echo ""
     data.cb(data.buf.base)
 
   dealloc(data.buf.base)
   dealloc(data)
-  uv_fs_req_cleanup(fs)
 
 proc doOpen(fs: ptr uv_fs_t) {.cdecl.} =
   var
     data: ptr dataObj = cast[ptr dataObj](fs.data)
-    r = fs.result
+    fd = fs.result
+
+  uv_fs_req_cleanup(fs)
 
   if r < 0:
     echo "error"
@@ -117,23 +116,24 @@ proc doOpen(fs: ptr uv_fs_t) {.cdecl.} =
 
   var fsStat = cast[ptr uv_fs_t](alloc(sizeof(uv_fs_t)))
 
-  if uv_fs_fstat(loop, fsStat, uv_file(r), nil) != 0:
+  if uv_fs_fstat(loop, fsStat, uv_file(fd), nil) != 0:
     dealloc(data.buf.base)
     dealloc(data)
     uv_fs_req_cleanup(fsStat)
     return
 
-  data.buf.base =
-    cast[ptr char](alloc(r))
-
   var
     fsRead = cast[ptr uv_fs_t](alloc(sizeof(uv_fs_t)))
-    uvBuf = uv_buf_init(
-            data.buf.base, r.cuint)
+    size = fsStat.statbuf.st_size
+    uvBuf = cast[ptr char](alloc(size))
 
-  fsRead.data = fs
+  uv_fs_req_cleanup(fsStat)
 
-  discard uv_fs_read(loop, fsRead, uv_file(fsStat.statbuf.st_size), addr(uvBuf), 1, -1,
+  data.buf.base = uv_buf_init(uvBuf, size)
+
+  fsRead.data = data
+
+  discard uv_fs_read(loop, fsRead, uv_file(fd), addr(data.buf), 1, -1,
                      doRead)
 
 proc asyncFileRead*(path: string, cb: proc(res: cstring)) =
