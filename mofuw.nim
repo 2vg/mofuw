@@ -2,6 +2,8 @@ import nativesockets, strtabs
 
 from osproc import countProcessors
 
+from posix import O_RDONLY
+
 from os import osLastError
 
 import lib/nimuv
@@ -71,6 +73,77 @@ proc afterClose(handle: ptr uv_handle_t) {.cdecl.} =
 
 proc freeResponse(req: ptr uv_write_t, status: cint) {.cdecl.} =
   dealloc(req)
+
+type
+  dataObj = object
+    fscb: ptr proc(fs: ptr uv_fs_t) {.cdecl.}
+    cb: proc(res: cstring)
+    buf: uv_buf_t
+
+proc doRead(fs: ptr uv_fs_t) {.cdecl.} =
+  var
+    r = fs.result
+    fsClose: uv_fs_t
+
+  #echo r
+  #echo repr cast[ptr dataObj](cast[ptr uv_fs_t](fs.data).data)
+
+  uv_fs_req_cleanup(fs)
+
+  if r < 0:
+    echo "error"
+  elif r == 0:
+    discard uv_fs_close(loop, addr(fsClose),
+                        uv_file(cast[ptr uv_fs_t](fs.data).result), nil)
+  else:
+    echo ""
+    cast[ptr dataObj](cast[ptr uv_fs_t](fs.data).data).
+      cb(cast[ptr dataObj](cast[ptr uv_fs_t](fs.data).data).buf.base)
+
+  dealloc(cast[ptr dataObj](cast[ptr uv_fs_t](fs.data).data).buf.base)
+
+proc doOpen(fs: ptr uv_fs_t) {.cdecl.} =
+  echo repr fs.data
+
+  var
+    data: ptr dataObj = cast[ptr dataObj](fs.data)
+    r = fs.result
+
+  if r < 0:
+    echo "error"
+    return
+
+  echo repr data
+
+  var fsStat = cast[ptr uv_fs_t](alloc(sizeof(uv_fs_t)))
+
+  if uv_fs_fstat(loop, fsStat, uv_file(r), nil) != 0:
+    uv_fs_req_cleanup(fsStat)
+    return
+
+  data.buf.base =
+    cast[ptr char](alloc(r))
+
+  var
+    fsRead = cast[ptr uv_fs_t](alloc(sizeof(uv_fs_t)))
+    uvBuf = uv_buf_init(
+            data.buf.base, r.cuint)
+
+  fsRead.data = fs
+
+  discard uv_fs_read(loop, fsRead, uv_file(fsStat.statbuf.st_size), addr(uvBuf), 1, -1,
+                     doRead)
+
+proc asyncFileRead*(path: string, cb: proc(res: cstring)) =
+  var
+    fsOpen = cast[ptr uv_fs_t](alloc(sizeof(uv_fs_t)))
+    data = cast[ptr dataObj](alloc(sizeof(dataObj)))
+
+  data.cb = cb
+
+  fsOpen.data = data
+
+  discard uv_fs_open(loop, fsOpen, path, O_RDONLY, S_IREAD, doOpen)
 
 proc bufAlloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} =
   buf.base = cast[ptr char](alloc(bufferSize))
