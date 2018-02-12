@@ -9,8 +9,9 @@ mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
       "Hello World"
     ))
   elif getPath(req) == "/test":
-    asyncFileRead("./nim.cfg", proc(res: cstring)=
-      echo "read!"
+    asyncFileRead("./nim.cfg", proc(res: string)=
+      #echo "read!: ", res # result: --threads:on
+      return
     )
 
     res.mofuw_send(makeResp(
