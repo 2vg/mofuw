@@ -129,7 +129,7 @@ proc doOpen(fs: ptr uv_fs_t) {.cdecl.} =
 
   uv_fs_req_cleanup(fsStat)
 
-  data.buf.base = uv_buf_init(uvBuf, size.uint64)
+  data.buf.base = uv_buf_init(uvBuf, size.cuint)
 
   fsRead.data = data
 
