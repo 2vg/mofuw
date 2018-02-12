@@ -108,7 +108,7 @@ proc doOpen(fs: ptr uv_fs_t) {.cdecl.} =
 
   uv_fs_req_cleanup(fs)
 
-  if r < 0:
+  if fd < 0:
     echo "error"
     dealloc(data.buf.base)
     dealloc(data)
