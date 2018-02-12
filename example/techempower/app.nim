@@ -6,7 +6,7 @@ mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
     res.mofuw_send(makeResp(
       HTTP200,
       "text/html",
-      "Hello World"
+      "Hello, World!"
     ))
   elif getPath(req) == "/test":
     asyncFileRead("./nim.cfg", proc(res: string)=
