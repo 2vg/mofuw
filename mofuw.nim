@@ -44,6 +44,7 @@ type
   Callback* = proc(req: ptr mofuwReq, res: ptr mofuwRes)
 
   dataObj = object
+    fd: uv_file
     cb: proc(res: string)
     buf: uv_buf_t
 
@@ -88,14 +89,14 @@ proc doRead(fs: ptr uv_fs_t) {.cdecl.} =
   #echo repr cast[ptr dataObj](cast[ptr uv_fs_t](fs.data).data)
 
   uv_fs_req_cleanup(fs)
+  dealloc(fs)
 
   if fd < 0:
     echo " read error"
-  elif fd == 0:
-    discard uv_fs_close(loop, addr(fsClose), uv_file(fd), nil)
   else:
     data.cb(($(data.buf.base))[0 .. data.buf.len - 1])
 
+  discard uv_fs_close(loop, addr(fsClose), data.fd, nil)
   dealloc(data.buf.base)
   dealloc(data)
 
@@ -105,6 +106,7 @@ proc doOpen(fs: ptr uv_fs_t) {.cdecl.} =
     fd = fs.result
 
   uv_fs_req_cleanup(fs)
+  dealloc(fs)
 
   if fd < 0:
     echo "open error"
@@ -112,23 +114,19 @@ proc doOpen(fs: ptr uv_fs_t) {.cdecl.} =
     dealloc(data)
     return
 
-  var fsStat = cast[ptr uv_fs_t](alloc(sizeof(uv_fs_t)))
+  var fsStat: uv_fs_t
 
-  if uv_fs_fstat(loop, fsStat, uv_file(fd), nil) != 0:
+  if uv_fs_fstat(loop, addr(fsStat), uv_file(fd), nil) != 0:
     dealloc(data.buf.base)
     dealloc(data)
-    uv_fs_req_cleanup(fsStat)
     return
 
   var
     fsRead = cast[ptr uv_fs_t](alloc(sizeof(uv_fs_t)))
     size = fsStat.statbuf.st_size
 
-  uv_fs_req_cleanup(fsStat)
-
-  #data.buf = uv_buf_init(cast[ptr char](alloc(size)), size.cuint)
+  data.fd = uv_file(fd)
   data.buf.base = cast[ptr char](alloc(size))
-
   data.buf.len = size.int
 
   fsRead.data = data
