@@ -125,11 +125,10 @@ proc doOpen(fs: ptr uv_fs_t) {.cdecl.} =
   var
     fsRead = cast[ptr uv_fs_t](alloc(sizeof(uv_fs_t)))
     size = fsStat.statbuf.st_size
-    uvBuf = cast[ptr char](alloc(size))
 
   uv_fs_req_cleanup(fsStat)
 
-  data.buf.base = uv_buf_init(uvBuf, size.cuint)
+  data.buf = uv_buf_init(cast[ptr char](alloc(size)), size.cuint)
 
   fsRead.data = data
 
