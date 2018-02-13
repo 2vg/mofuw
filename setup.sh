@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -ueo pipefail
+set -e -u -o pipefail
 
 wget https://dist.libuv.org/dist/v1.19.1/libuv-v1.19.1.tar.gz
 
