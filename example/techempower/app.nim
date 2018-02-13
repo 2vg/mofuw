@@ -8,17 +8,6 @@ mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
       "text/html",
       "Hello, World!"
     ))
-  elif getPath(req) == "/test":
-    asyncFileRead("./nim.cfg", proc(res: string)=
-      #echo "read!: ", res # result: --threads:on
-      return
-    )
-
-    res.mofuw_send(makeResp(
-      HTTP200,
-      "text/html",
-      "Hello World"
-    ))
   else:
     res.mofuw_send(notFound())
 
