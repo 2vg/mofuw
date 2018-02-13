@@ -135,9 +135,13 @@ I will not develop it yet, but it's probably not a distant future.
 ## Todo
 - [x] ~~header make proc(?)~~
 - [x] ~~Cache (memory buffer ? collab with redis ?)~~ (maybe non need this.)
-- [x] ~~File response (will soon complete)~~
+- [ ] File response (will soon complete)
 - [x] routing (now support GET, POST, PATCH, PUT, DELETE, OPTIONS only, want to finish it early)
 - [x] ~~multi-thread (this need ?)~~
+
+Update:
+
+asyncFileRead has been deleted. please use synchronous file IO until it is implemented.
 
 ## Special Thanks
 - [jester](https://github.com/dom96/jester) (using jester's pattern and utils)
