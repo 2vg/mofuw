@@ -1,10 +1,6 @@
 import nativesockets, strtabs
 
-import asyncfile, asyncdispatch, os
-
 from osproc import countProcessors
-
-from posix import O_RDONLY
 
 from os import osLastError
 
@@ -21,10 +17,6 @@ const
 
   defaultBufferSize = 64 * kByte
   maxBodySize = 1 * mByte
-
-var
-  S_IREAD {.importc, header: "<sys/stat.h>".}: cint
-  S_IWRITE {.importc, header: "<sys/stat.h>".}: cint
 
 type
   mofuwReq* = object
@@ -44,22 +36,6 @@ type
     body: uv_buf_t
 
   Callback* = proc(req: ptr mofuwReq, res: ptr mofuwRes)
-
-  fsObj = object
-    cb: proc(res: string)
-    fd: uv_file
-    buf: uv_buf_t
-    open: uv_fs_t
-    read: uv_fs_t
-    stat: uv_fs_t
-    close: uv_fs_t
-
-#[
-  dataObj = object
-    fd: uv_file
-    cb: proc(res: string)
-    buf: uv_buf_t
-]#
 
 var
   loop         {.threadvar.}: ptr uv_loop_t
@@ -92,98 +68,6 @@ proc afterClose(handle: ptr uv_handle_t) {.cdecl.} =
 proc freeResponse(req: ptr uv_write_t, status: cint) {.cdecl.} =
   dealloc(req)
 
-#[
-proc freeFsReq(req: ptr uv_fs_t) {.cdecl.} =
-  if req.data == nil:
-    echo "nil p"
-    uv_fs_req_cleanup(req)
-    dealloc(req.data)
-  else:
-    var data = cast[ptr fsObj](req.data)
-
-    uv_fs_req_cleanup(req)
-
-    dealloc(data.buf.base)
-    dealloc(data)
-
-    data.cb("Hello World")#($(data.buf.base))[0 .. data.buf.len - 1])
-
-    #dealloc(data.buf.base)
-    #dealloc(data)
-
-proc doRead(fs: ptr uv_fs_t) {.cdecl.} =
-  var
-    fd = fs.result
-    data = cast[ptr fsObj](fs.data)
-
-  #echo r
-  #echo repr cast[ptr dataObj](cast[ptr uv_fs_t](fs.data).data)
-
-  uv_fs_req_cleanup(fs)
-  #dealloc(fs)
-
-  if fd < 0:
-    echo " read error"
-    discard uv_fs_close(loop, addr(data.close), data.fd, freeFsReq)
-    dealloc(data.buf.base)
-    dealloc(data)
-    return
-
-  data.close.data = data
-
-  discard uv_fs_close(loop, addr(data.close), data.fd, freeFsReq)
-
-proc doOpen(fs: ptr uv_fs_t) {.cdecl.} =
-  var
-    data: ptr fsObj = cast[ptr fsObj](fs.data)
-    fd = fs.result
-
-  uv_fs_req_cleanup(fs)
-
-  if fd < 0:
-    echo "open error"
-    #dealloc(data.buf.base)
-    dealloc(data)
-    return
-
-  data.fd = uv_file(fd)
-
-  var fsStat: uv_fs_t
-
-  if uv_fs_fstat(loop, addr(data.stat), data.fd, nil) != 0:
-    #dealloc(data.buf.base)
-    dealloc(data)
-    return
-
-  data.buf.base = cast[ptr char](alloc0(data.stat.statbuf.st_size))
-  data.buf.len = data.stat.statbuf.st_size.int
-
-  var uvbuf = uv_buf_init(data.buf.base, data.buf.len.cuint)
-
-  data.read.data = data
-
-  discard uv_fs_read(loop, addr(data.read), uv_file(fd), addr(uvbuf), 1, -1,
-                     doRead)
-
-proc asyncFileRead*(path: string, cb: proc(res: string)) =
-  var
-    #fsOpen = cast[ptr uv_fs_t](alloc(sizeof(uv_fs_t)))
-    #data = cast[ptr dataObj](alloc0(sizeof(dataObj)))
-    fs = cast[ptr fsObj](alloc0(sizeof(fsObj)))
-
-  fs.cb = cb
-
-  fs.open.data = fs
-
-  discard uv_fs_open(loop, addr(fs.open), path, O_RDONLY, S_IREAD, doOpen)
-
-proc testRead*(path: string, cb: proc(fileResult: string)) {.async.} =
-  var file = openAsync(path, fmRead)
-  let data = await file.readAll()
-  file.close()
-  echo ""
-]#
-
 proc bufAlloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} =
   buf.base = cast[ptr char](alloc(bufferSize))
   buf.len = bufferSize
@@ -198,7 +82,7 @@ proc mofuw_send*(res: ptr mofuwRes, body: cstring) {.inline.}=
 proc notFound*(res: ptr mofuwRes) =
   mofuw_send(res, notFound())
 
-proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
+proc readCb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
   if nread == -4095:
     dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), afterClose)
@@ -279,7 +163,7 @@ proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
   if not uv_accept(server, client) == 0:
     return
 
-  if not uv_read_start(client, bufAlloc, read_cb) == 0:
+  if not uv_read_start(client, bufAlloc, readCb) == 0:
     return
 
 proc updateServerTime(handle: ptr uv_timer_t) {.cdecl.}=
