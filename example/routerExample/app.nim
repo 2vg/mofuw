@@ -21,6 +21,21 @@ router.mofuwGET("/", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
   ))
 )
 
+# file response example
+router.mofuwGET("/file", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+  var
+    f : File = open("./index.html" , FileMode.fmRead)
+
+  defer :
+    close(f)
+
+  res.mofuw_send(makeResp(
+    HTTP200,
+    "text/plain",
+    f.readAll()
+  ))
+)
+
 # this route for techempower benchmark. see README.md
 router.mofuwGET("/plaintext", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
   res.mofuw_send(makeResp(
