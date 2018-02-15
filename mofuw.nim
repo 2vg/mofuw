@@ -1,11 +1,6 @@
 import nativesockets, strtabs
 
-import asyncfile, asyncdispatch, os
-
 from osproc import countProcessors
-
-from posix import O_RDONLY
-
 from os import osLastError
 
 import lib/nimuv
@@ -21,10 +16,6 @@ const
 
   defaultBufferSize = 64 * kByte
   maxBodySize = 1 * mByte
-
-var
-  S_IREAD {.importc, header: "<sys/stat.h>".}: cint
-  S_IWRITE {.importc, header: "<sys/stat.h>".}: cint
 
 type
   mofuwReq* = object
@@ -45,24 +36,7 @@ type
 
   Callback* = proc(req: ptr mofuwReq, res: ptr mofuwRes)
 
-  fsObj = object
-    cb: proc(res: string)
-    fd: uv_file
-    buf: uv_buf_t
-    open: uv_fs_t
-    read: uv_fs_t
-    stat: uv_fs_t
-    close: uv_fs_t
-
-#[
-  dataObj = object
-    fd: uv_file
-    cb: proc(res: string)
-    buf: uv_buf_t
-]#
-
 var
-  loop         {.threadvar.}: ptr uv_loop_t
   callback*    {.threadvar.}: Callback
   bufferSize*  {.threadvar.}: int
 
@@ -91,101 +65,6 @@ proc afterClose(handle: ptr uv_handle_t) {.cdecl.} =
 
 proc freeResponse(req: ptr uv_write_t, status: cint) {.cdecl.} =
   dealloc(req)
-
-# #[
-proc freeFsReq(req: ptr uv_fs_t) {.cdecl.} =
-  if req.data == nil:
-    echo "nil p"
-    uv_fs_req_cleanup(req)
-    dealloc(req.data)
-  else:
-    var data = cast[ptr fsObj](req.data)
-
-    uv_fs_req_cleanup(req)
-
-    dealloc(data.buf.base)
-    dealloc(data)
-
-    data.cb("Hello World")#($(data.buf.base))[0 .. data.buf.len - 1])
-
-    #dealloc(data.buf.base)
-    #dealloc(data)
-
-proc doRead(fs: ptr uv_fs_t) {.cdecl.} =
-  var
-    fd = fs.result
-    data = cast[ptr fsObj](fs.data)
-
-  #echo r
-  #echo repr cast[ptr dataObj](cast[ptr uv_fs_t](fs.data).data)
-
-  uv_fs_req_cleanup(fs)
-  #dealloc(fs)
-
-  if fd < 0:
-    echo " read error"
-    discard uv_fs_close(loop, addr(data.close), data.fd, freeFsReq)
-    dealloc(data.buf.base)
-    dealloc(data)
-    return
-
-  data.close.data = data
-
-  discard uv_fs_close(loop, addr(data.close), data.fd, freeFsReq)
-
-proc doOpen(fs: ptr uv_fs_t) {.cdecl.} =
-  var
-    data: ptr fsObj = cast[ptr fsObj](fs.data)
-    fd = fs.result
-
-  uv_fs_req_cleanup(fs)
-
-  if fd < 0:
-    echo "open error"
-    #dealloc(data.buf.base)
-    dealloc(data)
-    return
-
-  data.fd = uv_file(fd)
-
-  var fsStat: uv_fs_t
-
-  if uv_fs_fstat(loop, addr(data.stat), data.fd, nil) != 0:
-    #dealloc(data.buf.base)
-    dealloc(data)
-    return
-
-  data.buf.base = cast[ptr char](alloc0(data.stat.statbuf.st_size))
-  data.buf.len = data.stat.statbuf.st_size.int
-
-  var uvbuf = uv_buf_init(data.buf.base, data.buf.len.cuint)
-
-  data.read.data = data
-
-  discard uv_fs_read(loop, addr(data.read), uv_file(fd), addr(uvbuf), 1, -1,
-                     doRead)
-
-proc asyncFileRead*(path: string, cb: proc(res: string)) =
-  var
-    #fsOpen = cast[ptr uv_fs_t](alloc(sizeof(uv_fs_t)))
-    #data = cast[ptr dataObj](alloc0(sizeof(dataObj)))
-    fs = cast[ptr fsObj](alloc0(sizeof(fsObj)))
-
-  fs.cb = cb
-
-  fs.open.data = fs
-
-  if uv_fs_open(loop, addr(fs.open), path, O_RDONLY, S_IREAD, doOpen) != 0:
-    echo "error open"
-    dealloc(fs)
-    return
-
-proc testRead*(path: string, cb: proc(fileResult: string)) {.async.} =
-  var file = openAsync(path, fmRead)
-  let data = await file.readAll()
-  file.close()
-  echo ""
-#]#
 
 proc bufAlloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} =
   buf.base = cast[ptr char](alloc(bufferSize))
@@ -290,12 +169,11 @@ proc updateServerTime(handle: ptr uv_timer_t) {.cdecl.}=
 
 proc mofuwInit(t: tuple[port: int, backlog: int, cb: Callback, bufSize: int]) =
   var
-    server: ptr uv_tcp_t = cast[ptr uv_tcp_t](alloc(sizeof(uv_tcp_t)))
-    timer: ptr uv_timer_t = cast[ptr uv_timer_t](alloc(sizeof(uv_timer_t)))
+    loop = cast[ptr uv_loop_t](alloc(sizeof(uv_loop_t)))
+    server = cast[ptr uv_tcp_t](alloc(sizeof(uv_tcp_t)))
+    timer = cast[ptr uv_timer_t](alloc(sizeof(uv_timer_t)))
     sockaddr: SockAddrIn
     fd: uv_os_fd_t
-
-  loop = cast[ptr uv_loop_t](alloc(sizeof(uv_loop_t)))
 
   callback = t.cb
 
@@ -333,7 +211,7 @@ proc mofuwRUN*(port: int = 8080, backlog: int = 128, buf: int = defaultBufferSiz
   if callback == nil:
     raise newException(Exception, "callback is nil.")
 
-  for i in 0 ..< 1:#countProcessors():
+  for i in 0 ..< countProcessors():
     createThread[tuple[port: int, backlog: int, cb: Callback, bufSize: int]](
       th, mofuwInit, (port, backlog, callback, buf)
     )
