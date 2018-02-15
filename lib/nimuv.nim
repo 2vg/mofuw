@@ -723,7 +723,7 @@ type
 
   uv_udp_send_cb* = proc(req: ptr uv_udp_send_t, status: cint): void {.cdecl.}
 
-  uv_udp_recv_cb* = proc(handle: ptr uv_udp_t, nread: cssize, buf: ptr uv_buf_t, `addr`: ptr SockAddr, flags: cuint): void {.cdecl.}
+  uv_udp_recv_cb* = proc(handle: ptr uv_udp_t, nread: cssize, buf: ptr uv_buf_t, `addr`: ptr nativesockets.SockAddr, flags: cuint): void {.cdecl.}
 
   uv_membership* = enum
     UV_LEAVE_GROUP = 0,
@@ -861,15 +861,15 @@ type
     data* {.importc.}: pointer
     `type`* {.importc.} : uv_req_type
     loop* {.importc.}: ptr uv_loop_t
-    addrinfo* {.importc.}: ptr Addrinfo
+    addrinfo* {.importc.}: ptr nativesockets.Addrinfo
 
-  uv_getaddrinfo_cb* = proc(req: ptr uv_getaddrinfo_t, status: cint, res: ptr Addrinfo): void {.cdecl.}
+  uv_getaddrinfo_cb* = proc(req: ptr uv_getaddrinfo_t, status: cint, res: ptr nativesockets.Addrinfo): void {.cdecl.}
 
   uv_getnameinfo_t* {.pure, final, importc, header: "uv.h".} = object
     data* {.importc.}: pointer
     `type`* {.importc.} : uv_req_type
     loop* {.importc.}: ptr uv_loop_t
-    addrinfo* {.importc.}: ptr Addrinfo
+    addrinfo* {.importc.}: ptr nativesockets.Addrinfo
 
   uv_getnameinfo_cb* = proc(req: ptr uv_getnameinfo_t, status: cint, hostname: cstring, service: cstring): void {.cdecl.}
 
@@ -956,12 +956,12 @@ type
     cpu_times* {.importc.}: uv_cpu_times_s
 
   address* {.pure, final, union, importc, header: "uv.h".} = object
-    address4* {.importc.}: Sockaddr_in
-    address6* {.importc.}: Sockaddr_in6
+    address4* {.importc.}: nativesockets.Sockaddr_in
+    address6* {.importc.}: nativesockets.Sockaddr_in6
 
   netmask* {.pure, final, union, importc, header: "uv.h".} = object
-    netmask4* {.importc.}: Sockaddr_in
-    netmask6* {.importc.}: Sockaddr_in6
+    netmask4* {.importc.}: nativesockets.Sockaddr_in
+    netmask6* {.importc.}: nativesockets.Sockaddr_in6
 
   uv_interface_address_t {.pure, final, importc, header: "uv.h".} = object
     name* {.importc.}: cstring
@@ -1286,16 +1286,16 @@ proc uv_tcp_keepalive*(handle: ptr uv_tcp_t, enable: cint, delay: cuint): cint
 proc uv_tcp_simultaneous_accepts*(handle: ptr uv_tcp_t, enable: cint): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_tcp_bind*(handle: ptr uv_tcp_t, `addr`: ptr SockAddr, flags: cuint): cint
+proc uv_tcp_bind*(handle: ptr uv_tcp_t, `addr`: ptr nativesockets.SockAddr, flags: cuint): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_tcp_getsockname*(handle: ptr uv_tcp_t, name: ptr SockAddr, namelen: cint): cint
+proc uv_tcp_getsockname*(handle: ptr uv_tcp_t, name: ptr nativesockets.SockAddr, namelen: cint): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_tcp_getpeername*(handle: ptr uv_tcp_t, name: ptr SockAddr, namelen: cint): cint
+proc uv_tcp_getpeername*(handle: ptr uv_tcp_t, name: ptr nativesockets.SockAddr, namelen: cint): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_tcp_connect*(req: ptr uv_connect_t, handle: ptr uv_tcp_t, name: ptr SockAddr, cb: uv_connect_cb): cint
+proc uv_tcp_connect*(req: ptr uv_connect_t, handle: ptr uv_tcp_t, name: ptr nativesockets.SockAddr, cb: uv_connect_cb): cint
   {.importc, cdecl, dynlib: libuv.}
 
 ###################
@@ -1358,10 +1358,10 @@ proc uv_udp_init_ex*(loop: ptr uv_loop_t, handle: ptr uv_udp_t, flags: cuint): c
 proc uv_udp_open*(handle: ptr uv_udp_t, sock: uv_os_sock_t): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_udp_bind*(handle: ptr uv_udp_t, `aadr`: ptr SockAddr, flags: cuint): cint
+proc uv_udp_bind*(handle: ptr uv_udp_t, `aadr`: ptr nativesockets.SockAddr, flags: cuint): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_udp_getsockname*(handle: ptr uv_udp_t, name: ptr SockAddr, namelen: var ptr cint): cint
+proc uv_udp_getsockname*(handle: ptr uv_udp_t, name: ptr nativesockets.SockAddr, namelen: var ptr cint): cint
   {.importc, cdecl, dynlib: libuv.}
 
 proc uv_udp_set_membership*(handle: ptr uv_udp_t, multicast_addr: cstring, interface_addr: cstring, membership: uv_membership): cint
@@ -1379,10 +1379,10 @@ proc uv_udp_set_broadcast*(handle: ptr uv_udp_t, on: cint): cint
 proc uv_udp_set_ttl*(handle: ptr uv_udp_t, ttl: cint): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_udp_send*(req: ptr uv_udp_send_t, handle: ptr uv_udp_t, bufs: ptr uv_buf_t, nbufs: cuint, `addr`: ptr SockAddr, send_cd: uv_udp_send_cb): cint
+proc uv_udp_send*(req: ptr uv_udp_send_t, handle: ptr uv_udp_t, bufs: ptr uv_buf_t, nbufs: cuint, `addr`: ptr nativesockets.SockAddr, send_cd: uv_udp_send_cb): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_udp_try_send*(handle: ptr uv_udp_t, bufs: ptr uv_buf_t, nbufs: cuint, `addr`: ptr SockAddr): cint
+proc uv_udp_try_send*(handle: ptr uv_udp_t, bufs: ptr uv_buf_t, nbufs: cuint, `addr`: ptr nativesockets.SockAddr): cint
   {.importc, cdecl, dynlib: libuv.}
 
 proc uv_udp_recv_start*(handle: ptr uv_udp_t, alloc_cb: uv_alloc_cb, recv_cb: uv_udp_recv_cb): cint
@@ -1544,13 +1544,13 @@ proc uv_queue_work*(loop: ptr uv_loop_t, req: ptr uv_work_t, work_cb: uv_work_cb
 ##################
 #     uv_dns     #
 ##################
-proc uv_getaddrinfo*(loop: ptr uv_loop_t, req: ptr uv_getaddrinfo_t, getaddrinfo_cb: uv_getaddrinfo_cb, node: cstring, service: cstring, hints: ptr Addrinfo): cint
+proc uv_getaddrinfo*(loop: ptr uv_loop_t, req: ptr uv_getaddrinfo_t, getaddrinfo_cb: uv_getaddrinfo_cb, node: cstring, service: cstring, hints: ptr nativesockets.Addrinfo): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_freeaddrinfo*(ai: ptr Addrinfo): void
+proc uv_freeaddrinfo*(ai: ptr nativesockets.Addrinfo): void
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_getnameinfo*(loop: ptr uv_loop_t, req: ptr uv_getnameinfo_t, getnameinfo_cb: uv_getnameinfo_cb, `addr`: ptr SockAddr, flags: cint): cint
+proc uv_getnameinfo*(loop: ptr uv_loop_t, req: ptr uv_getnameinfo_t, getnameinfo_cb: uv_getnameinfo_cb, `addr`: ptr nativesockets.SockAddr, flags: cint): cint
   {.importc, cdecl, dynlib: libuv.}
 
 ##################
@@ -1733,16 +1733,16 @@ proc uv_free_interface_addresses*(adresses: ptr uv_interface_address_t, count: p
 proc uv_loadavg*(arg: array[3, cdouble]): void
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_ip4_addr*(ip: cstring, port: cint, `addr`: ptr Sockaddr_in): cint
+proc uv_ip4_addr*(ip: cstring, port: cint, `addr`: ptr nativesockets.nativesockets.Sockaddr_in): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_ip6_addr*(ip: cstring, port: cint, `addr`: ptr Sockaddr_in6): cint
+proc uv_ip6_addr*(ip: cstring, port: cint, `addr`: ptr nativesockets.nativesockets.Sockaddr_in6): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_ip4_name*(src: ptr Sockaddr_in, dst: cstring, size: csize): cint
+proc uv_ip4_name*(src: ptr nativesockets.nativesockets.Sockaddr_in, dst: cstring, size: csize): cint
   {.importc, cdecl, dynlib: libuv.}
 
-proc uv_ip6_name*(src: ptr Sockaddr_in6, dst: cstring, size: csize): cint
+proc uv_ip6_name*(src: ptr nativesockets.nativesockets.Sockaddr_in6, dst: cstring, size: csize): cint
   {.importc, cdecl, dynlib: libuv.}
 
 proc uv_inet_ntop*(af: cint, src: pointer, dst: cstring, size: csize): cint
