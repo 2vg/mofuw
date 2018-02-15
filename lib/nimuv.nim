@@ -1,11 +1,13 @@
 import nativesockets
 
+const libuv =
+  when defined(windows): "./deps/libuv.dll"
+  elif defined(macosx):  "/usr/local/lib/libuv.dylib"
+  else:                  "/usr/local/lib/libuv.so"
+
 when defined(windows):
   # need --cincludes:'uv.h path'
-
   import winlean
-
-  const libuv = "win/libuv.dll"
 
   type
     uv_pid_t* {.importc.} = cuchar
@@ -19,9 +21,6 @@ when defined(windows):
     uv_os_sock_t* {.importc.} = SocketHandle
     uv_os_fd_t* {.importc.} = winlean.Handle
 else:
-
-  const libuv = "/usr/local/lib/libuv.so"
-
   type
     uv_pid_t* {.importc: "pid_t", header: "<sys/types.h>".} = cint
     uv_uid_t* {.importc: "uid_t", header: "<sys/types.h>".} = cint
