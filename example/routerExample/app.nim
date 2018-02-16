@@ -1,12 +1,14 @@
 import mofuw
 import middleware/router/mofuwRouter
+import middleware/staticServe/mofuwStaticServe
 
 # if you using router, router init and callback is this.
 var
   router = newMofuwRouter()
   
 mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
-  mofuwRouting(router, req, res)
+  if not serveStatic(req, res, "./"):
+    mofuwRouting(router, req, res)
 
 # when router using, mofuw(HTTP METHOD NAME) call.
 # and,
