@@ -136,18 +136,18 @@ proc addBody*(str: string, mime: string, body: string, charset: string = "UTF-8"
   result.add("\r\L\r\L")
   result.add(body)
 
-proc redirectTo*(URL: string): string {.inline.}=
-  result = addHeader(makeRespNoBody(HTTP301), @[("Location", URL)])
+proc redirectTo*(URL: string): string {.inline.} =
+  result = addHeader(makeRespNoBody(HTTP301), @[("Content-Length", "0"), ("Location", URL)])
   result.add("\r\L")
 
-proc badRequest*(): string {.inline.}=
+proc badRequest*(): string {.inline.} =
   result = makeResp(
     HTTP400,
     "text/html",
     "<html><head><title>400 Bad Request</title></head><body style=\"text-align: center;\"><h1>400 Bad Request</h1><hr/><p>Mofuw 0.0.1</p></body></html>"
   )
 
-proc notFound*(): string {.inline.}=
+proc notFound*(): string {.inline.} =
   result = makeResp(
     HTTP404,
     "text/html",
