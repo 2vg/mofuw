@@ -1,4 +1,4 @@
-import mofuw, os, mimetypes
+import mofuw, os, mimetypes, uri
 
 proc reverse(s: var string) =
   for i in 0 .. s.high div 2:
@@ -13,14 +13,6 @@ proc serveStatic*(req: ptr mofuwReq, res: ptr mofuwRes, rootPath: string): bool 
     filePath = rootPath
     file: string
 
-  #echo repr rootPath
-  #echo repr filePath
-
-  #for k, v in reqPath:
-  #  if v == '/':
-  #    state = k + 1
-  #    break
-
   if filePath[^1] != '/':
     filePath.add("/")
     filePath.add(reqPath[state .. ^1])
@@ -29,9 +21,18 @@ proc serveStatic*(req: ptr mofuwReq, res: ptr mofuwRes, rootPath: string): bool 
 
   if filePath[^1] != '/':
     if existsDir(filePath):
+      var host = ""
+      for v in req.reqHeader:
+        if v.namelen == 0: break
+        if ($(v.name))[0 .. v.namelen] == "Host":
+          host.add(($(v.value))[0 .. v.valuelen])
+
+      reqPath.add("/")
+
       res.mofuw_send(redirectTo(
-        filePath
+        "http://" / host / reqPath
       ))
+
       return true
     if fileExists(filePath):
       file = readFile(filePath)
