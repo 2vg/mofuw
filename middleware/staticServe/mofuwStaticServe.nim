@@ -13,6 +13,12 @@ proc serveStatic*(req: ptr mofuwReq, res: ptr mofuwRes, rootPath: string): bool 
     filePath = rootPath
     file: string
 
+  for k, v in reqPath:
+    if v == '.':
+      if reqPath[k+1] == '.':
+        res.mofuw_send(badRequest())
+        return true
+
   if filePath[^1] != '/':
     filePath.add("/")
     filePath.add(reqPath[state .. ^1])
