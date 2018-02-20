@@ -1,5 +1,6 @@
 import mofuw
 import middleware/router/mofuwRouter
+import middleware/staticServe/mofuwStaticServe
 
 import json
 import db_sqlite
@@ -8,34 +9,32 @@ import os
 
 let
   router = newMofuwRouter()
-  db = open("example/todo-sqlite/todo.db", nil, nil, nil)
+  db = open("todo.db", nil, nil, nil)
+  f = open("todo.db")
 
-if not fileExists("example/todo-sqlite/todo.db"):
-  db.exec(sql("""create table todo (
- 　              Id   INTEGER PRIMARY KEY,
- 　　            todo TEXT)"""))
+if f.getFileSize() == 0:
+  db.exec(sql("""create table todo (id, todo_id integer, todo text)"""))
+
+f.close()
 
 callback = proc(req: mofuwReq, res: mofuwRes) =
-  mofuwRouting(router, req, res)
+  if not serveStatic(req, res, "public"):
+    mofuwRouting(router, req, res)
 
 router.mofuwGET("/api/todo/get", proc(req: mofuwReq, res: mofuwRes) =
   var json = %* []
 
-  for r in db.rows(sql"select * from todo", []):
-    json.add(%* {"todo_id": r[1], "todo": r[2]})
+  try:
+    for r in db.rows(sql"select * from todo", []):
+      json.add(%* {"todo_id": r[1], "todo": r[2]})
+  except:
+    res.mofuw_send(notFound())
 
-  res.mofuw_send(
-    addBody(
-      addHeader(
-        makeRespNoBody(HTTP200),
-        @[
-          ("Access-Control-Allow-Origin", "*")
-        ]
-      ),
-      "application/json",
-      $json
-    )
-  )
+  res.mofuw_send(makeResp(
+    HTTP200,
+    "application/json",
+    $json
+  ))
 )
 
 router.mofuwPOST("/api/todo/add", proc(req: mofuwReq, res: mofuwRes) =
@@ -59,18 +58,11 @@ router.mofuwPOST("/api/todo/add", proc(req: mofuwReq, res: mofuwRes) =
   for r in db.rows(sql"select * from todo", []):
     resp.add(%* {"todo_id": r[1], "todo": r[2]})
 
-  res.mofuw_send(
-    addBody(
-      addHeader(
-        makeRespNoBody(HTTP200),
-        @[
-          ("Access-Control-Allow-Origin", "*")
-        ]
-      ),
-      "application/json",
-      $resp
-    )
-  )
+  res.mofuw_send(makeResp(
+    HTTP200,
+    "application/json",
+    $resp
+  ))
 )
 
 router.mofuwPOST("/api/todo/delete", proc(req: mofuwReq, res: mofuwRes) =
@@ -91,54 +83,11 @@ router.mofuwPOST("/api/todo/delete", proc(req: mofuwReq, res: mofuwRes) =
   for r in db.rows(sql"select * from todo", []):
     resp.add(%* {"todo_id": r[1], "todo": r[2]})
 
-  res.mofuw_send(
-    addBody(
-      addHeader(
-        makeRespNoBody(HTTP200),
-        @[
-          ("Access-Control-Allow-Origin", "*")
-        ]
-      ),
-      "application/json",
-      $resp
-    )
-  )
-)
-
-router.mofuwOPTIONS("/api/todo/add", proc(req: mofuwReq, res: mofuwRes) =
-  res.mofuw_send(
-    addBody(
-      addHeader(
-        makeRespNoBody(HTTP200),
-        @[
-          ("Access-Control-Allow-Origin", "*"),
-          ("Access-Control-Max-Age", "86400"),
-          ("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS"),
-          ("Access-Control-Allow-Headers", "*")
-        ]
-      ),
-      "text/plain",
-      ""
-    )
-  )
-)
-
-router.mofuwOPTIONS("/api/todo/delete", proc(req: mofuwReq, res: mofuwRes) =
-  res.mofuw_send(
-    addBody(
-      addHeader(
-        makeRespNoBody(HTTP200),
-        @[
-          ("Access-Control-Allow-Origin", "*"),
-          ("Access-Control-Max-Age", "86400"),
-          ("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS"),
-          ("Access-Control-Allow-Headers", "*")
-        ]
-      ),
-      "text/plain",
-      ""
-    )
-  )
+  res.mofuw_send(makeResp(
+    HTTP200,
+    "application/json",
+    $resp
+  ))
 )
 
 mofuwRUN(8080)
