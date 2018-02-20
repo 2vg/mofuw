@@ -5,10 +5,10 @@
   add ()
   {
     if (this.refs.addTodo.value) {
-      fetch("http://localhost:8080/api/todo/add", {
+      fetch("api/todo/add", {
         method: 'POST',
         body: JSON.stringify({"todo": this.refs.addTodo.value}),
-        headers : new Headers({ "Content-type" : "application/json; charset=UTF-8" })
+        headers : new Headers({"Content-type" : "application/json; charset=UTF-8"})
       }).then(response => {
         return response.json();
       })
