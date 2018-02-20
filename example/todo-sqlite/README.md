@@ -3,7 +3,6 @@
 ## require
 - nim (devel)
 - libuv(1.19)
-- node.js(mofuw cant file serve so need file serve app)
 
 ## usage
 need like tmux or multi tab terminal.
