@@ -19,7 +19,7 @@ type
     path: string
     pattern: Pattern
     isParams: bool
-    cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)
+    cb: proc(req: mofuwReq, res: mofuwRes)
 
 proc newMofuwRouter*(): router =
   result = router(
@@ -31,28 +31,28 @@ proc newMofuwRouter*(): router =
     OPTIONS: @[]
   )
 
-proc mofuwGET*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
+proc mofuwGET*(r: router, path: string, cb: proc(req: mofuwReq, res: mofuwRes)) =
   if path.contains(re"@"):
     r.GET.add(router_t(pattern: parsePattern(path), isParams: true, cb: cb))
   else:
     r.GET.add(router_t(path: path, isParams: false, cb: cb))
 
-proc mofuwPOST*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
+proc mofuwPOST*(r: router, path: string, cb: proc(req: mofuwReq, res: mofuwRes)) =
   r.POST.add(router_t(pattern: parsePattern(path), cb: cb))
 
-proc mofuwPUT*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
+proc mofuwPUT*(r: router, path: string, cb: proc(req: mofuwReq, res: mofuwRes)) =
   r.PUT.add(router_t(pattern: parsePattern(path), cb: cb))
   
-proc mofuwDELETE*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
+proc mofuwDELETE*(r: router, path: string, cb: proc(req: mofuwReq, res: mofuwRes)) =
   r.DELETE.add(router_t(pattern: parsePattern(path), cb: cb))
 
-proc mofuwPATCH*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
+proc mofuwPATCH*(r: router, path: string, cb: proc(req: mofuwReq, res: mofuwRes)) =
   r.PATCH.add(router_t(pattern: parsePattern(path), cb: cb))
 
-proc mofuwOPTIONS*(r: router, path: string, cb: proc(req: ptr mofuwReq, res: ptr mofuwRes)) =
+proc mofuwOPTIONS*(r: router, path: string, cb: proc(req: mofuwReq, res: mofuwRes)) =
   r.OPTIONS.add(router_t(pattern: parsePattern(path), cb: cb))
 
-proc mofuwRouting*(r: router, request: ptr mofuwReq, response: ptr mofuwRes) {.inline.}=
+proc mofuwRouting*(r: router, request: mofuwReq, response: mofuwRes) {.inline.}=
   case getMethod(request)
   of "GET":
     if r.GET.len == 0:

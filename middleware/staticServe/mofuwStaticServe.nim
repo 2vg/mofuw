@@ -4,7 +4,7 @@ proc reverse(s: var string) =
   for i in 0 .. s.high div 2:
     swap(s[i], s[s.high - i])
 
-proc serveStatic*(req: ptr mofuwReq, res: ptr mofuwRes, rootPath: string): bool =
+proc serveStatic*(req: mofuwReq, res: mofuwRes, rootPath: string): bool =
   var
     state = 0
     reqPath = getPath(req)
