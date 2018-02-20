@@ -51,7 +51,7 @@ minimal example is this 👇
 ```nim
 import mofuw
 
-mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+mofuw.callback = proc(req: mofuwReq, res: mofuwRes) =
   if getPath(req) == "/":
     res.mofuw_send(makeResp(
       HTTP200,
@@ -78,7 +78,7 @@ if you will using mofuw, you will be very surprised.
 - used backend is libuv, so Asynchronous I/O
 - my parser is implement like [picohttpparser](https://github.com/h2o/picohttpparser), so Zero-Copy, ultra fast parsing... yeah, fast may.
 - Easy API, create Web Application, create an extended Web server
-- multi-thread support, see app.nim
+- multi-thread event-loop.
 
 ## Benchmark
 see this benchmark result.
@@ -135,13 +135,14 @@ I will not develop it yet, but it's probably not a distant future.
 ## Todo
 - [x] ~~header make proc(?)~~
 - [x] ~~Cache (memory buffer ? collab with redis ?)~~ (maybe non need this.)
-- [ ] File response (will soon complete)
+- [x] ~~File response (will soon complete)~~
 - [x] routing (now support GET, POST, PATCH, PUT, DELETE, OPTIONS only, want to finish it early)
 - [x] ~~multi-thread (this need ?)~~
 
 Update:
 
 asyncFileRead has been deleted. please use synchronous file IO until it is implemented.
+perhaps i think synchronous file I/O is enough.
 
 ## Special Thanks
 - [jester](https://github.com/dom96/jester) (using jester's pattern and utils)
