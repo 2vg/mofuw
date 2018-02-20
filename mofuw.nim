@@ -139,16 +139,14 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
 
   if r <= 0:
     notFound(response)
-    dealloc(buf.base)
     uv_close(cast[ptr uv_handle_t](stream), afterClose)
     return
 
   request.reqBodyLen -= r
-  request.reqBody = ($(cast[cstring](cast[int](addr(request.reqBody[0])) + r)))[0 .. request.reqBodyLen]
+  request.reqBody = ($(cast[cstring](cast[int](addr(request.reqBody[0])) + r)))[0 .. request.reqBodyLen - 1]
 
   if request.reqBodyLen > maxBodySize:
     mofuw_send(response, bodyTooLarge())
-    dealloc(buf.base)
     return
 
   request.buf = buf.base
