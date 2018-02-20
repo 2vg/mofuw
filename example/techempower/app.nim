@@ -1,7 +1,7 @@
 import mofuw
 
 # if callback only, example this:
-mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+mofuw.callback = proc(req: mofuwReq, res: mofuwRes) =
   if getPath(req) == "/plaintext":
     res.mofuw_send(makeResp(
       HTTP200,

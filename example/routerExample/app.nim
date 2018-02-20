@@ -1,4 +1,4 @@
-import mofuw
+import mofuw, unicode
 import middleware/router/mofuwRouter
 import middleware/staticServe/mofuwStaticServe
 
@@ -6,16 +6,16 @@ import middleware/staticServe/mofuwStaticServe
 var
   router = newMofuwRouter()
   
-mofuw.callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+mofuw.callback = proc(req: mofuwReq, res: mofuwRes) =
   if not serveStatic(req, res, "./"):
     mofuwRouting(router, req, res)
 
 # when router using, mofuw(HTTP METHOD NAME) call.
 # and,
-# ("/this/is/routing/path", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+# ("/this/is/routing/path", proc(req: mofuwReq, res: mofuwRes) =
 #   here is request handle process writing...
 # )
-router.mofuwGET("/", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+router.mofuwGET("/", proc(req: mofuwReq, res: mofuwRes) =
   res.mofuw_send(makeResp(
     HTTP200,
     "text/html",
@@ -24,22 +24,28 @@ router.mofuwGET("/", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
 )
 
 # file response example
-router.mofuwGET("/file", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
-  var
-    f : File = open("./index.html" , FileMode.fmRead)
+router.mofuwGET("/file", proc(req: mofuwReq, res: mofuwRes) =
+  # for example, read file and processing...
+  # let f = open("./dummy.txt", fmRead)
+  # defer: close(f)
+  # let results = do(f.readAll())
+  # res.mofuw_send(makeResp(
+  #   HTTP200,
+  #   "text/html",
+  #   readFile("./dummy.txt")
+  # ))
 
-  defer :
-    close(f)
-
+  # this is direct read file and response soon.
+  # but, not thinking about I/O error ;)
   res.mofuw_send(makeResp(
     HTTP200,
-    "text/plain",
-    f.readAll()
+    "text/html",
+    readFile("./index.html")
   ))
 )
 
 # this route for techempower benchmark. see README.md
-router.mofuwGET("/plaintext", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+router.mofuwGET("/plaintext", proc(req: mofuwReq, res: mofuwRes) =
   res.mofuw_send(makeResp(
     HTTP200,
     "text/plain",
@@ -47,7 +53,7 @@ router.mofuwGET("/plaintext", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
   ))
 )
 
-router.mofuwGET("/user/@name", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+router.mofuwGET("/user/@name", proc(req: mofuwReq, res: mofuwRes) =
   res.mofuw_send(makeResp(
     HTTP200,
     "text/plain",

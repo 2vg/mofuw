@@ -15,10 +15,10 @@ if not fileExists("example/todo-sqlite/todo.db"):
  　              Id   INTEGER PRIMARY KEY,
  　　            todo TEXT)"""))
 
-callback = proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+callback = proc(req: mofuwReq, res: mofuwRes) =
   mofuwRouting(router, req, res)
 
-router.mofuwGET("/api/todo/get", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+router.mofuwGET("/api/todo/get", proc(req: mofuwReq, res: mofuwRes) =
   var json = %* []
 
   for r in db.rows(sql"select * from todo", []):
@@ -38,7 +38,7 @@ router.mofuwGET("/api/todo/get", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
   )
 )
 
-router.mofuwPOST("/api/todo/add", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+router.mofuwPOST("/api/todo/add", proc(req: mofuwReq, res: mofuwRes) =
   var
     json: JsonNode
     resp = %* []
@@ -73,7 +73,7 @@ router.mofuwPOST("/api/todo/add", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
   )
 )
 
-router.mofuwPOST("/api/todo/delete", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+router.mofuwPOST("/api/todo/delete", proc(req: mofuwReq, res: mofuwRes) =
   var
     json: JsonNode
     resp = %* []
@@ -105,7 +105,7 @@ router.mofuwPOST("/api/todo/delete", proc(req: ptr mofuwReq, res: ptr mofuwRes) 
   )
 )
 
-router.mofuwOPTIONS("/api/todo/add", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+router.mofuwOPTIONS("/api/todo/add", proc(req: mofuwReq, res: mofuwRes) =
   res.mofuw_send(
     addBody(
       addHeader(
@@ -123,7 +123,7 @@ router.mofuwOPTIONS("/api/todo/add", proc(req: ptr mofuwReq, res: ptr mofuwRes) 
   )
 )
 
-router.mofuwOPTIONS("/api/todo/delete", proc(req: ptr mofuwReq, res: ptr mofuwRes) =
+router.mofuwOPTIONS("/api/todo/delete", proc(req: mofuwReq, res: mofuwRes) =
   res.mofuw_send(
     addBody(
       addHeader(
