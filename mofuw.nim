@@ -18,35 +18,38 @@ const
   maxBodySize = 1 * mByte
 
 type
-  mofuwReq* = object
+  mofuwReq* = ref object
     handle: ptr uv_handle_t
     reqLine: HttpReq
     reqHeader*: array[48, headers]
-    reqHeaderAddr: ptr mofuwReq.reqHeader
+    reqHeaderAddr: ptr array[48, headers]
     reqBody*: string
     reqBodyLen*: int
     params*: StringTableRef
     tmp*: cstring
+    buf: pointer
 
-  mofuwRes* = object
-    handle: ptr uv_handle_t
+  mofuwRes* = ref object
+    handle*: ptr uv_stream_t
     fd: cint
-    res: ptr uv_write_t
+    fs: uv_fs_t
+    res*: ptr uv_write_t
     body: uv_buf_t
+    req: mofuwReq
 
-  Callback* = proc(req: ptr mofuwReq, res: ptr mofuwRes)
+  Callback* = proc(req: mofuwReq, res: mofuwRes)
 
 var
   callback*    {.threadvar.}: Callback
   bufferSize*  {.threadvar.}: int
 
-proc getMethod*(req: ptr mofuwReq): string {.inline.} =
+proc getMethod*(req: mofuwReq): string {.inline.} =
   result = ($(req.reqLine.method))[0 .. req.reqLine.methodLen]
 
-proc getPath*(req: ptr mofuwReq): string {.inline.} =
+proc getPath*(req: mofuwReq): string {.inline.} =
   result = ($(req.reqLine.path))[0 .. req.reqLine.pathLen]
 
-proc getCookie*(req: ptr mofuwReq): string {.inline.} =
+proc getCookie*(req: mofuwReq): string {.inline.} =
   for v in req.reqHeader:
     if v.name == nil: break
     if ($(v.name))[0 .. v.namelen] == "Cookie":
@@ -54,7 +57,7 @@ proc getCookie*(req: ptr mofuwReq): string {.inline.} =
       return
   result = ""
 
-proc getReqBody*(req: ptr mofuwReq): string {.inline.} =
+proc getReqBody*(req: mofuwReq): string {.inline.} =
   result = $req.reqBody
 
 proc setBufferSize*(size: int) {.inline.} = 
@@ -70,14 +73,16 @@ proc bufAlloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.}
   buf.base = cast[ptr char](alloc(bufferSize))
   buf.len = bufferSize
 
-proc mofuw_send*(res: ptr mofuwRes, body: cstring) {.inline.}=
+proc mofuw_send*(res: mofuwRes, body: cstring) {.inline.}=
+  dealloc(res.req.buf)
+
   res.body.base = cast[ptr char](body)
   res.body.len = body.len
 
-  if not uv_write(res.res, cast[ptr uv_stream_t](res.handle), res.body.addr, 1, freeResponse) == 0:
+  if not uv_write(res.res, res.handle, addr(res.body), 1, freeResponse) == 0:
     return
 
-proc notFound*(res: ptr mofuwRes) =
+proc notFound*(res: mofuwRes) =
   mofuw_send(res, notFound())
 
 proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
@@ -92,10 +97,10 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
     return
 
   var
-    req = mofuwReq(reqBody: "")
-    res = mofuwRes()
-    request = addr(req)
-    response = addr(res)
+    request = mofuwReq(reqBody: "")
+    response = mofuwRes()
+
+  stream.data = addr(request)
 
   if nread != bufferSize:
     request.reqBody.add(($(buf.base))[0 .. nread])
@@ -123,9 +128,12 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
       request.reqBody.add(addr(buff[0]))
       request.reqBodyLen += r
 
+  request.handle = cast[ptr uv_handle_t](stream)
   request.reqHeaderAddr = request.reqHeader.addr
-  response.handle = cast[ptr uv_handle_t](stream)
+
+  response.handle = stream
   response.res = cast[ptr uv_write_t](alloc(sizeof(uv_write_t)))
+  response.req = request
 
   let r = mp_req(addr(request.reqBody[0]), request.reqLine, request.reqHeaderAddr)
 
@@ -143,10 +151,9 @@ proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.
     dealloc(buf.base)
     return
 
-  callback(request, response)
+  request.buf = buf.base
 
-  request.reqBody.setLen(0)
-  dealloc(buf.base)
+  callback(request, response)
 
 proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
   if not status == 0:
