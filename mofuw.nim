@@ -155,7 +155,7 @@ proc mofuwRun*(port: int = 8080, backlog: int = SOMAXCONN,
               bufSize: int = defaultBufferSize,
               cb: Callback) =
 
-  if callback == nil:
+  if cb == nil:
     raise newException(Exception, "callback is nil.")
 
   for i in 0 ..< countProcessors():
