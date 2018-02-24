@@ -192,7 +192,7 @@ macro routes*(body: untyped): typed =
     case body[i].kind
     of nnkCommand:
       let
-        cmdName = body[i][0].ident.`$`.normalize.toUpper()
+        cmdName = body[i][0].ident.`$`.normalize.toUpperAscii()
         cmdPath = $body[i][1]
 
       if not methodTables.hasKey(cmdName):
@@ -261,7 +261,7 @@ macro routesWithPattern*(body: untyped): typed =
     case body[i].kind
     of nnkCommand:
       let
-        cmdName = body[i][0].ident.`$`.normalize.toUpper()
+        cmdName = body[i][0].ident.`$`.normalize.toUpperAscii()
         cmdPath = $body[i][1]
 
       if not methodTables.hasKey(cmdName):
