@@ -1,6 +1,6 @@
 import mofuw
 
-mofuw.callback = proc(req: mofuwReq, res: mofuwRes) {.async.} =
+proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
   routesWithPattern:
     get "/":
       await res.mofuwSend(makeResp(
@@ -23,4 +23,4 @@ mofuw.callback = proc(req: mofuwReq, res: mofuwRes) {.async.} =
         "created: " & req.body
       ))
 
-mofuwRUN(8080, 128, 512)
+mofuwRUN(8080, 128, 512, handler)
