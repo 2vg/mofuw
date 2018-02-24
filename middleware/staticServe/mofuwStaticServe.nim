@@ -1,9 +1,5 @@
 import mofuw, os, ospaths, mimetypes, uri, asyncfile
 
-proc reverse(s: var string) =
-  for i in 0 .. s.high div 2:
-    swap(s[i], s[s.high - i])
-
 proc serveStatic*(req: mofuwReq, res: mofuwRes, rootPath: string): Future[bool] {.async.} =
   var
     state = 0
@@ -26,11 +22,7 @@ proc serveStatic*(req: mofuwReq, res: mofuwRes, rootPath: string): Future[bool] 
 
   if filePath[^1] != '/':
     if existsDir(filePath):
-      var host = ""
-      for v in req.reqHeader:
-        if v.namelen == 0: break
-        if ($(v.name))[0 .. v.namelen] == "Host":
-          host.add(($(v.value))[0 .. v.valuelen])
+      let host = getHeader(req, "Host")
 
       reqPath.add("/")
 
