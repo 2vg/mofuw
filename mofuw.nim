@@ -28,9 +28,9 @@ export
 
 type
   mofuwReq* = ref object
-    reqLine: HttpReq
-    reqHeader*: array[32, headers]
-    reqHeaderAddr: ptr array[32, headers]
+    line: HttpReq
+    header: array[32, headers]
+    headerAddr: ptr array[32, headers]
     body*: string
     params*: StringTableRef
     tmp*: cstring
@@ -38,7 +38,7 @@ type
   mofuwRes* = ref object
     fd: AsyncFD
 
-  Callback* = proc(req: mofuwReq, res: mofuwRes): Future[void]
+  Callback = proc(req: mofuwReq, res: mofuwRes): Future[void]
 
 const
   kByte* = 1024
@@ -69,13 +69,13 @@ proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
   return server.getFd()
 
 proc getMethod*(req: mofuwReq): string {.inline.} =
-  result = ($(req.reqLine.method))[0 .. req.reqLine.methodLen]
+  result = ($(req.line.method))[0 .. req.line.methodLen]
 
 proc getPath*(req: mofuwReq): string {.inline.} =
-  result = ($(req.reqLine.path))[0 .. req.reqLine.pathLen]
+  result = ($(req.line.path))[0 .. req.line.pathLen]
 
 proc getCookie*(req: mofuwReq): string {.inline.} =
-  for v in req.reqHeader:
+  for v in req.header:
     if v.name == nil: break
     if ($(v.name))[0 .. v.namelen] == "Cookie":
       result = ($(v.value))[0 .. v.valuelen]
@@ -102,7 +102,7 @@ proc handler(fd: AsyncFD) {.async.} =
         response = mofuwRes()
 
       buf.add(recv)
-      request.reqHeaderAddr = request.reqHeader.addr
+      request.headerAddr = addr(request.header)
 
       response.fd = fd
 
@@ -115,7 +115,7 @@ proc handler(fd: AsyncFD) {.async.} =
 
           buf.add(recv)
 
-      let r = mp_req(addr(buf[0]), request.reqLine, request.reqHeaderAddr)
+      let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
 
       if r <= 0:
         await response.mofuwSend(notFound())
@@ -152,13 +152,14 @@ proc run(port: int, backlog: int, bufSize: int, cb: Callback) {.thread.} =
   waitFor mofuwInit(port, backlog, bufSize)
 
 proc mofuwRun*(port: int = 8080, backlog: int = SOMAXCONN,
-              bufSize: int = defaultBufferSize) =
+              bufSize: int = defaultBufferSize,
+              cb: Callback) =
 
   if callback == nil:
     raise newException(Exception, "callback is nil.")
 
   for i in 0 ..< countProcessors():
-    spawn run(port, backlog, bufSize, callback)
+    spawn run(port, backlog, bufSize, cb)
 
   sync()
 
