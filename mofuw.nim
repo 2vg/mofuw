@@ -1,47 +1,74 @@
-import nativesockets, strtabs
+import
+  net,
+  hashes,
+  macros,
+  osproc,
+  tables,
+  strtabs,
+  strutils,
+  threadpool,
+  asyncdispatch,
+  nativesockets
 
-from osproc import countProcessors
-from os import osLastError
+when defined(windows):
+  from winlean import TCP_NODELAY
+else:
+  from posix import TCP_NODELAY
 
-import lib/nimuv
-import lib/mofuparser
-import lib/httputils
+import
+  lib/httputils,
+  lib/mofuparser,
+  lib/objectPool,
+  lib/jesterPatterns
 
 export
-  httputils
+  strtabs,
+  httputils,
+  asyncdispatch,
+  jesterPatterns
+
+type
+  mofuwReq* = ref object
+    reqLine: HttpReq
+    reqHeader*: array[16, headers]
+    reqHeaderAddr: ptr array[16, headers]
+    reqBody*: string
+    reqBodyLen: int
+    params*: StringTableRef
+    tmp*: cstring
+
+  mofuwRes* = ref object
+    fd: AsyncFD
+
+  Callback* = proc(req: mofuwReq, res: mofuwRes): Future[void]
 
 const
   kByte* = 1024
   mByte* = 1024 * kByte
 
-  defaultBufferSize = 64 * kByte
+  defaultBufferSize = 8 * kByte
   maxBodySize = 1 * mByte
-
-type
-  mofuwReq* = ref object
-    handle: ptr uv_handle_t
-    reqLine: HttpReq
-    reqHeader*: array[48, headers]
-    reqHeaderAddr: ptr array[48, headers]
-    reqBody*: string
-    reqBodyLen*: int
-    params*: StringTableRef
-    tmp*: cstring
-    buf: pointer
-
-  mofuwRes* = ref object
-    handle*: ptr uv_stream_t
-    fd: cint
-    fs: uv_fs_t
-    res*: ptr uv_write_t
-    body: uv_buf_t
-    req: mofuwReq
-
-  Callback* = proc(req: mofuwReq, res: mofuwRes)
 
 var
   callback*    {.threadvar.}: Callback
   bufferSize*  {.threadvar.}: int
+
+proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
+  let server = newSocket()
+
+  server.setSockOpt(OptReuseAddr, true)
+
+  server.setSockOpt(OptReusePort, true)
+
+  server.getFD().setSockOptInt(cint(IPPROTO_TCP), TCP_NODELAY, 1)
+
+  server.getFd.setBlocking(false)
+
+  server.bindAddr(Port(port))
+
+  server.listen(backlog.cint)
+
+  return server.getFd()
 
 proc getMethod*(req: mofuwReq): string {.inline.} =
   result = ($(req.reqLine.method))[0 .. req.reqLine.methodLen]
@@ -60,165 +87,323 @@ proc getCookie*(req: mofuwReq): string {.inline.} =
 proc getReqBody*(req: mofuwReq): string {.inline.} =
   result = $req.reqBody
 
-proc setBufferSize*(size: int) {.inline.} = 
-  bufferSize = size
+proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
+  await send(res.fd, body)
 
-proc afterClose(handle: ptr uv_handle_t) {.cdecl.} =
-  dealloc(handle)
+proc notFound*(res: mofuwRes) {.async.} =
+  await mofuwSend(res, notFound())
 
-proc freeResponse(req: ptr uv_write_t, status: cint) {.cdecl.} =
-  dealloc(req)
+proc handler(fd: AsyncFD) {.async.} =
+  while true:
+    let recv = await recv(fd, bufferSize)
 
-proc bufAlloc(handle: ptr uv_handle_t, size: csize, buf: ptr uv_buf_t) {.cdecl.} =
-  buf.base = cast[ptr char](alloc(bufferSize))
-  buf.len = bufferSize
+    if recv == "":
+      closeSocket(fd)
+      break
+    else:
+      var
+        buf = ""
+        request = mofuwReq(reqBody: "")
+        response = mofuwRes()
 
-proc mofuw_send*(res: mofuwRes, body: cstring) {.inline.}=
-  dealloc(res.req.buf)
+      buf.add(recv)
+      request.reqHeaderAddr = request.reqHeader.addr
 
-  res.body.base = cast[ptr char](body)
-  res.body.len = body.len
+      response.fd = fd
 
-  if not uv_write(res.res, res.handle, addr(res.body), 1, freeResponse) == 0:
-    return
+      if recv.len == bufferSize:
+        while true:
+          let recv = await recv(fd, bufferSize)
 
-proc notFound*(res: mofuwRes) =
-  mofuw_send(res, notFound())
+          if recv == "":
+            break
 
-proc read_cb(stream: ptr uv_stream_t, nread: cssize, buf: ptr uv_buf_t) {.cdecl.} =
-  if nread == UV_EOF:
-    dealloc(buf.base)
-    uv_close(cast[ptr uv_handle_t](stream), afterClose)
-    return
+          buf.add(recv)
 
-  elif nread < 0:
-    dealloc(buf.base)
-    uv_close(cast[ptr uv_handle_t](stream), afterClose)
-    return
+      let r = mp_req(addr(buf[0]), request.reqLine, request.reqHeaderAddr)
 
-  var
-    request = mofuwReq(reqBody: "")
-    response = mofuwRes()
+      if r <= 0:
+        await response.mofuwSend(notFound())
+        buf.setLen(0)
 
-  stream.data = addr(request)
+      shallowcopy(request.reqBody, buf[r .. buf.len - 1])
+      request.reqBodyLen = request.reqBody.len
 
-  if nread != bufferSize:
-    request.reqBody.add(($(buf.base))[0 .. nread])
-    request.reqBodyLen += nread
-  else:
-    var
-      fd: uv_os_fd_t
-      buff: array[defaultBufferSize, char]
+      await callback(request, response)
 
-    discard uv_fileno(cast[ptr uv_handle_t](stream), addr(fd))
+proc updateTime(fd: AsyncFD): bool =
+  updateServerTime()
+  return false
 
-    request.reqBody.add($(buf.base))
-    request.reqBodyLen += nread
+proc mofuwInit(port: int, backlog: int, bufSize: int) {.async.} =
 
-    while true:
-      let r = recv(fd.SocketHandle, addr buff[0], bufferSize, 0)
+  let server = newServerSocket(port, backlog).AsyncFD
 
-      if r == -1:
-        if osLastError().int in {EWOULDBLOCK, EAGAIN}:
-          break
-        dealloc(buf.base)
-        uv_close(cast[ptr uv_handle_t](stream), afterClose)
-        return
+  bufferSize = bufSize
 
-      request.reqBody.add(addr(buff[0]))
-      request.reqBodyLen += r
+  register(server)
 
-  request.handle = cast[ptr uv_handle_t](stream)
-  request.reqHeaderAddr = request.reqHeader.addr
+  addTimer(1000, false, updateTime)
 
-  response.handle = stream
-  response.res = cast[ptr uv_write_t](alloc(sizeof(uv_write_t)))
-  response.req = request
+  while true:
+    let client = await accept(server)
 
-  let r = mp_req(addr(request.reqBody[0]), request.reqLine, request.reqHeaderAddr)
+    client.SocketHandle.setBlocking(false)
 
-  if r <= 0:
-    notFound(response)
-    uv_close(cast[ptr uv_handle_t](stream), afterClose)
-    return
+    asyncCheck handler(client)
 
-  request.reqBodyLen -= r
-  request.reqBody = ($(cast[cstring](cast[int](addr(request.reqBody[0])) + r)))[0 .. request.reqBodyLen - 1]
+proc run(port: int, backlog: int, bufSize: int, cb: Callback) {.thread.} =
+  callback = cb
 
-  if request.reqBodyLen > maxBodySize:
-    mofuw_send(response, bodyTooLarge())
-    return
+  waitFor mofuwInit(port, backlog, bufSize)
 
-  request.buf = buf.base
-
-  callback(request, response)
-
-proc accept_cb(server: ptr uv_stream_t, status: cint) {.cdecl.} =
-  if not status == 0:
-    echo "error: ", uv_err_name(status), uv_strerror(status), "\n"
-
-  var
-    client = cast[ptr uv_stream_t](alloc(sizeof(uv_tcp_t)))
-
-  if not uv_tcp_init(server.loop, cast[ptr uv_tcp_t](client)) == 0:
-    return
-
-  if not uv_accept(server, client) == 0:
-    return
-
-  if not uv_read_start(client, bufAlloc, read_cb) == 0:
-    return
-
-proc updateServerTime(handle: ptr uv_timer_t) {.cdecl.}=
-  httputils.updateServerTime()
-
-proc mofuwInit(t: tuple[port: int, backlog: int, cb: Callback, bufSize: int]) =
-  var
-    loop = cast[ptr uv_loop_t](alloc(sizeof(uv_loop_t)))
-    server = cast[ptr uv_tcp_t](alloc(sizeof(uv_tcp_t)))
-    timer = cast[ptr uv_timer_t](alloc(sizeof(uv_timer_t)))
-    sockaddr: SockAddrIn
-    fd: uv_os_fd_t
-
-  callback = t.cb
-
-  setBufferSize(t.bufSize)
-
-  discard uv_loop_init(loop)
-
-  discard uv_ip4_addr("0.0.0.0".cstring, t.port.cint, addr(sockaddr))
-
-  discard uv_tcp_init_ex(loop, server, AF_INET.cuint)
-
-  discard uv_tcp_nodelay(server, 1)
-
-  discard uv_tcp_simultaneous_accepts(server, 1)
-
-  discard uv_fileno(cast[ptr uv_handle_t](server), addr(fd))
-
-  fd.SocketHandle.setSockOptInt(cint(SOL_SOCKET), SO_REUSEPORT, 1)
-
-  discard uv_tcp_bind(server, cast[ptr SockAddr](addr(sockaddr)), 0)
-
-  discard uv_listen(cast[ptr uv_stream_t](server), t.backlog.cint, accept_cb)
-
-  discard uv_timer_init(loop, timer)
-
-  discard uv_timer_start(timer, updateServerTime, 0.uint64, 1000.0.uint64)
-
-  httputils.updateServerTime()
-
-  discard uv_run(loop, UV_RUN_DEFAULT)
-
-proc mofuwRUN*(port: int = 8080, backlog: int = 128, buf: int = defaultBufferSize) =
-  var th: Thread[tuple[port: int, backlog: int, cb: Callback, bufSize: int]]
+proc mofuwRun*(port: int = 8080, backlog: int = SOMAXCONN,
+              bufSize: int = defaultBufferSize) =
 
   if callback == nil:
     raise newException(Exception, "callback is nil.")
 
   for i in 0 ..< countProcessors():
-    createThread[tuple[port: int, backlog: int, cb: Callback, bufSize: int]](
-      th, mofuwInit, (port, backlog, callback, buf)
-    )
+    spawn run(port, backlog, bufSize, callback)
 
-  joinThread(th)
+  sync()
+
+proc hash(str: string): Hash =
+  var h = 0
+  
+  for v in str:
+    h = h !& v.int
+
+  result = !$h
+
+proc create(body, stmt: NimNode, i: int) {.compileTime.} =
+  stmt.add(body[i][2])
+
+macro routes*(body: untyped): typed =
+  result = newStmtList()
+
+  var
+    methodCase = newNimNode(nnkCaseStmt)
+    methodTables = initTable[string, NimNode]()
+    caseTables = initTable[string, NimNode]()
+
+  methodCase.add(
+    newCall(
+      "getMethod",
+      ident("req")
+    )
+  )
+
+  for i in 0 ..< body.len:
+    case body[i].kind
+    of nnkCommand:
+      let
+        cmdName = body[i][0].ident.`$`.normalize.toUpper()
+        cmdPath = $body[i][1]
+
+      if not methodTables.hasKey(cmdName):
+        methodTables[cmdName] = newNimNode(nnkOfBranch)
+
+        methodTables[cmdName].add(newLit(cmdName))
+
+      if not caseTables.hasKey(cmdName):
+        caseTables[cmdName] = newNimNode(nnkCaseStmt)
+      
+        caseTables[cmdName].add(
+          newCall(
+            "getPath",
+            ident("req")
+          )
+        )
+
+      var stmt = newNimNode(nnkOfBranch)
+      stmt.add(newLit(cmdPath))
+      create(body, stmt, i)
+      caseTables[cmdName].add(stmt)
+    else:
+      discard
+
+  var elseMethod = newNimNode(nnkElse)
+
+  elseMethod.add(
+    newStmtList(
+      newNimNode(nnkCommand).add(
+        newIdentNode("asyncCheck"),
+        newCall(
+          "notFound",
+          ident("res")
+        )
+      )
+    )
+  )
+
+  for k, v in caseTables.pairs:
+    v.add(elseMethod)
+    methodTables[k].add(v)
+
+  for k, v in methodTables.pairs:
+    methodCase.add(v)
+
+  methodCase.add(elseMethod)
+
+  result.add(methodCase)
+
+macro routesWithPattern*(body: untyped): typed =
+  result = newStmtList()
+
+  var
+    methodCase = newNimNode(nnkCaseStmt)
+    methodTables = initTable[string, NimNode]()
+    caseTables = initTable[string, NimNode]()
+
+  methodCase.add(
+    newCall(
+      "getMethod",
+      ident("req")
+    )
+  )
+
+  for i in 0 ..< body.len:
+    case body[i].kind
+    of nnkCommand:
+      let
+        cmdName = body[i][0].ident.`$`.normalize.toUpper()
+        cmdPath = $body[i][1]
+
+      if not methodTables.hasKey(cmdName):
+        methodTables[cmdName] = newNimNode(nnkOfBranch)
+
+        methodTables[cmdName].add(newLit(cmdName))
+
+      if not caseTables.hasKey(cmdName):
+        caseTables[cmdName] = newStmtList()
+
+        caseTables[cmdName].add(
+          newNimNode(nnkVarSection).add(
+            newNimNode(nnkIdentDefs).add(
+              ident("flag"), 
+              newNimNode(nnkEmpty),
+              ident("true")
+            ),
+            newNimNode(nnkIdentDefs).add(
+              ident("pat"), 
+              ident("Pattern"),
+              newNimNode(nnkEmpty)
+            ),
+            newNimNode(nnkIdentDefs).add(
+              ident("re"), 
+              newNimNode(nnkTupleTy).add(
+                newNimNode(nnkIdentDefs).add(
+                  ident("matched"), 
+                  ident("bool"),
+                  newNimNode(nnkEmpty)
+                ),
+                newNimNode(nnkIdentDefs).add(
+                  ident("params"), 
+                  ident("StringTableRef"),
+                  newNimNode(nnkEmpty)
+                )
+              ),
+              newNimNode(nnkEmpty)
+            ),
+            newNimNode(nnkIdentDefs).add(
+              ident("path"), 
+              newNimNode(nnkEmpty),
+              newCall(
+                "getPath",
+                ident("req")
+              )
+            )
+          )
+        )
+      
+      caseTables[cmdName].add(
+        newAssignment(
+          ident("pat"),
+          newCall(
+            ident("parsePattern"),
+            newStrLitNode(cmdPath)
+          )
+        )
+      )
+
+      caseTables[cmdName].add(
+        newAssignment(
+          ident("re"),
+          newCall(
+            ident("match"),
+            ident("pat"),
+            ident("path")
+          )
+        )
+      )
+
+      caseTables[cmdName].add(
+        newAssignment(
+          newDotExpr(
+            ident("req"),
+            ident("params")
+          ),
+          newDotExpr(
+            ident("re"),
+            ident("params")
+          )
+        )
+      )
+
+      caseTables[cmdName].add(
+        newIfStmt((
+          ident("flag"),
+          newIfStmt(
+            (newDotExpr(
+              ident("re"),
+              ident("matched")
+            ),
+            body[i][2].add(
+              parseStmt("flag = false")
+            ))
+          )
+        ))
+      )
+    else:
+      discard
+
+  var
+    nFound = newStmtList()
+    elseMethod = newNimNode(nnkElse)
+
+  nFound.add(
+    newIfStmt(
+      (ident("flag"),
+      newNimNode(nnkCommand).add(
+        newIdentNode("asyncCheck"),
+        newCall(
+          "notFound",
+          ident("res")
+        )
+      ))
+    )
+  )
+
+  elseMethod.add(
+    newStmtList(
+      newNimNode(nnkCommand).add(
+        newIdentNode("asyncCheck"),
+        newCall(
+          "notFound",
+          ident("res")
+        )
+      )
+    )
+  )
+
+  for k, v in caseTables.pairs:
+    v.add(nFound)
+    methodTables[k].add(v)
+
+  for k, v in methodTables.pairs:
+    methodCase.add(v)
+
+  methodCase.add(elseMethod)
+
+  result.add(methodCase)
