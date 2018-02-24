@@ -16,4 +16,11 @@ mofuw.callback = proc(req: mofuwReq, res: mofuwRes) {.async.} =
         "Hello, " & req.params["id"] & "!"
       ))
 
+    post "/create":
+      await res.mofuwSend(makeResp(
+        HTTP200,
+        "text/plain",
+        "created: " & req.body
+      ))
+
 mofuwRUN(8080, 128, 512)
