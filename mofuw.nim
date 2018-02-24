@@ -82,6 +82,14 @@ proc getCookie*(req: mofuwReq): string {.inline.} =
       return
   result = ""
 
+proc getHeader*(req: mofuwReq, name: string): string {.inline.} =
+  for v in req.header:
+    if v.name == nil: break
+    if ($(v.name))[0 .. v.namelen] == name:
+      result = ($(v.value))[0 .. v.valuelen]
+      return
+  result = ""
+
 proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
   await send(res.fd, body)
 
