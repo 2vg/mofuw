@@ -14,6 +14,17 @@ mofuw is now developping.
 
 please be careful when using.
 
+## Why changeed using libuv to asyncdispatch ?
+- Why ?
+
+A. because asyncdispatch is great module than libuv.
+
+asyncdispatch is very easy to use and excellent in handling asynchronous IO.
+
+- not like libuv ?
+
+A. **No**. but, tired of memory management lel.
+
 ## Require
 - nim (nim-devel)
 
@@ -114,15 +125,6 @@ this is developping now !~~
 ## ~~working change backend libuv to libev~~
 ~~yeah, found way multi-thread event loop so im develop change backend libuv to libev.
 but probably, will not to change API usage~~
-
-## Decided to continue developing the back end with asyncdispatch
-- Why ?
-
-A. because asyncdispatch is great module than libuv.
-
-- Why remove libuv?
-
-A. i tired memory management lel
 
 ## Todo
 - [x] ~~header make proc(?)~~
