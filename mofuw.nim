@@ -18,7 +18,6 @@ else:
 import
   lib/httputils,
   lib/mofuparser,
-  lib/objectPool,
   lib/jesterPatterns
 
 export
