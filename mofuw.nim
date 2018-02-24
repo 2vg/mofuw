@@ -29,10 +29,9 @@ export
 type
   mofuwReq* = ref object
     reqLine: HttpReq
-    reqHeader*: array[16, headers]
-    reqHeaderAddr: ptr array[16, headers]
-    reqBody*: string
-    reqBodyLen: int
+    reqHeader*: array[32, headers]
+    reqHeaderAddr: ptr array[32, headers]
+    body*: string
     params*: StringTableRef
     tmp*: cstring
 
@@ -83,9 +82,6 @@ proc getCookie*(req: mofuwReq): string {.inline.} =
       return
   result = ""
 
-proc getReqBody*(req: mofuwReq): string {.inline.} =
-  result = $req.reqBody
-
 proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
   await send(res.fd, body)
 
@@ -102,7 +98,7 @@ proc handler(fd: AsyncFD) {.async.} =
     else:
       var
         buf = ""
-        request = mofuwReq(reqBody: "")
+        request = mofuwReq(body: "")
         response = mofuwRes()
 
       buf.add(recv)
@@ -125,8 +121,7 @@ proc handler(fd: AsyncFD) {.async.} =
         await response.mofuwSend(notFound())
         buf.setLen(0)
 
-      shallowcopy(request.reqBody, buf[r .. buf.len - 1])
-      request.reqBodyLen = request.reqBody.len
+      request.body = $(addr(buf[r]))
 
       await callback(request, response)
 
