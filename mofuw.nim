@@ -96,6 +96,8 @@ proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
 proc notFound*(res: mofuwRes) {.async.} =
   await mofuwSend(res, notFound())
 
+include middleware/staticServe/mofuwStaticServe
+
 proc handler(fd: AsyncFD) {.async.} =
   while true:
     let recv = await recv(fd, bufferSize)
@@ -338,3 +340,11 @@ macro routes*(body: untyped): typed =
   methodCase.add(elseMethod)
 
   result.add(methodCase)
+
+template routesStatic*(filePath: string, body: untyped): typed =
+  var fut = serveStatic(req, res, filepath)
+
+  fut.callback = proc() =
+    if not fut.read:
+      routes:
+        body
