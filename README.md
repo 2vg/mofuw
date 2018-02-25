@@ -1,7 +1,6 @@
 # mofuw [![Build Status](https://semaphoreci.com/api/v1/2vg/mofuw/branches/master/badge.svg)](https://semaphoreci.com/2vg/mofuw)
 [![Author: 2vg](https://img.shields.io/badge/mofuw-%C2%B0%CA%9A%20%C9%9E%C2%B0-green.svg)](https://github.com/2vg/mofuw)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Maintainability](https://api.codeclimate.com/v1/badges/1602ec8a231cbaabf155/maintainability)](https://codeclimate.com/github/2vg/mofuw/maintainability)
 
 > **MO**re **F**ast **U**ltra **W**eb server.
 
@@ -13,6 +12,11 @@
 mofuw is now developping.
 
 please be careful when using.
+
+## Why fast ?
+because using asyncdispatch, and using fast parser.
+
+about my parser, check [mofuparser](https://github.com/2vg/mofuparser)
 
 ## Why changeed using libuv to asyncdispatch ?
 - Why ?
@@ -31,7 +35,7 @@ A. **No**. but, tired of memory management lel.
 ## Setup
 before mofuw install, 
 
-need Nim-devel setup.
+need nim devel setup.
 
 ```shell
 sh setup.sh
@@ -48,7 +52,9 @@ mofuw is non need B U I L D.
 
 install is need only `git clone`.
 
-(sure, installed nim 0.17.3 and libuv 1.19. see [setup](https://github.com/2vg/mofuw/blob/master/README.md#setup) section.)
+of course, installed nim devel.
+
+see [setup](https://github.com/2vg/mofuw/blob/master/README.md#setup) section.
 
 ```sh
 git clone https://github.com/2vg/mofuw
@@ -110,27 +116,11 @@ mofuw is more faster than [tokio-minihttp](https://github.com/tokio-rs/tokio-min
 
 this is a benchmark result of [techempower](https://www.techempower.com/benchmarks/#section=data-r15&hw=ph&test=plaintext), but if can apply my benchmark result to this techempower's benchmark result, **👑 mofuw can aim at 1st place 👑**.
 
-## Why fast ?
-because using asyncdispatch, and using fast parser.
-
-about my parser, check [mofuparser](https://github.com/2vg/mofuparser)
-
-~~but, i want to use libev... because more faster than libuv...
-this is developping now !~~
-
-~~if i will made Asynchronous library, i will may replace libuv to libev or Selectors. (or make lib)~~
-
-**I LOVE ASYNCDISPATCH ♡**
-
-## ~~working change backend libuv to libev~~
-~~yeah, found way multi-thread event loop so im develop change backend libuv to libev.
-but probably, will not to change API usage~~
-
 ## Todo
 - [x] ~~header make proc(?)~~
-- [x] ~~Cache (memory buffer ? collab with redis ?)~~ (maybe non need this.)
+- [ ] Cache (memory buffer ? collab with redis ?)
 - [x] ~~File response (will soon complete)~~
-- [x] routing (now support GET, POST, PATCH, PUT, DELETE, OPTIONS only, want to finish it early)
+- [x] ~~routing (now support GET, POST, PATCH, PUT, DELETE, OPTIONS only, want to finish it early)~~
 - [x] ~~multi-thread (this need ?)~~
 
 ## Special Thanks
