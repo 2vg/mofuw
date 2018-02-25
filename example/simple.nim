@@ -1,7 +1,7 @@
 import mofuw
 
 proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
-  routesWithPattern:
+  routes:
     get "/":
       await res.mofuwSend(makeResp(
         HTTP200,
