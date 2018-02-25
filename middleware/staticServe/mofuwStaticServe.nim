@@ -1,4 +1,4 @@
-import mofuw, os, ospaths, mimetypes, uri, asyncfile
+import os, ospaths, mimetypes, uri, asyncfile
 
 proc fileResp(res: mofuwRes, filePath, file: string) {.async.}=
   let (_, _, ext) = splitFile(filePath)
