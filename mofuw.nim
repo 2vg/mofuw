@@ -183,7 +183,7 @@ proc hash(str: string): Hash =
   result = !$h
 
 template mofuwResp*(status, mime, body: string): typed =
-  asyncCheck mofuwSend(makeResp(
+  asyncCheck res.mofuwSend(makeResp(
     status,
     mime,
     body
@@ -255,10 +255,14 @@ macro routes*(body: untyped): typed =
                 ident("req")
               )
             )
+          ),
+          newBlockStmt(
+            ident("router"),
+            newStmtList()
           )
         )
-      
-      caseTables[cmdName].add(
+
+      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
         newAssignment(
           ident("pat"),
           newCall(
@@ -268,7 +272,7 @@ macro routes*(body: untyped): typed =
         )
       )
 
-      caseTables[cmdName].add(
+      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
         newAssignment(
           ident("re"),
           newCall(
@@ -279,7 +283,7 @@ macro routes*(body: untyped): typed =
         )
       )
 
-      caseTables[cmdName].add(
+      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
         newAssignment(
           newDotExpr(
             ident("req"),
@@ -292,7 +296,7 @@ macro routes*(body: untyped): typed =
         )
       )
 
-      caseTables[cmdName].add(
+      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
         newIfStmt((
           ident("flag"),
           newIfStmt(
@@ -301,7 +305,7 @@ macro routes*(body: untyped): typed =
               ident("matched")
             ),
             body[i][2].add(
-              parseStmt("flag = false")
+              parseStmt("break router")
             ))
           )
         ))
@@ -339,7 +343,7 @@ macro routes*(body: untyped): typed =
   )
 
   for k, v in caseTables.pairs:
-    v.add(nFound)
+    v.findChild(it.kind == nnkBlockStmt)[1].add(nFound)
     methodTables[k].add(v)
 
   for k, v in methodTables.pairs:
