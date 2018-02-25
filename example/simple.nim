@@ -23,4 +23,18 @@ proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
         "created: " & req.body
       ))
 
-mofuwRUN(8080, 128, 512, handler)
+#####
+# mofuwRun's Param
+# port: int,
+# backlog: int,
+# bufferSize: int,
+# cb: proc(req: mofuwReq, res: mofuwRes) {.async.}
+# 
+# but port, backlog, bufferSize is have default param.
+# port = 8080, backlog = SOMAXCONN, bufferSize = 8KiB
+# so, it is optional.
+# for example code,
+# mofuwRun(cb = handler)
+#####
+
+mofuwRun(8080, 128, 512, handler)
