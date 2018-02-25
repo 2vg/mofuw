@@ -48,7 +48,7 @@ const
   maxBodySize = 1 * mByte
 
 var
-  callback*    {.threadvar.}: Callback
+  callback    {.threadvar.}: Callback
   bufferSize*  {.threadvar.}: int
 
 proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
