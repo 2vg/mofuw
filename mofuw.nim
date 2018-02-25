@@ -179,79 +179,7 @@ proc hash(str: string): Hash =
 
   result = !$h
 
-proc create(body, stmt: NimNode, i: int) {.compileTime.} =
-  stmt.add(body[i][2])
-
 macro routes*(body: untyped): typed =
-  result = newStmtList()
-
-  var
-    methodCase = newNimNode(nnkCaseStmt)
-    methodTables = initTable[string, NimNode]()
-    caseTables = initTable[string, NimNode]()
-
-  methodCase.add(
-    newCall(
-      "getMethod",
-      ident("req")
-    )
-  )
-
-  for i in 0 ..< body.len:
-    case body[i].kind
-    of nnkCommand:
-      let
-        cmdName = body[i][0].ident.`$`.normalize.toUpperAscii()
-        cmdPath = $body[i][1]
-
-      if not methodTables.hasKey(cmdName):
-        methodTables[cmdName] = newNimNode(nnkOfBranch)
-
-        methodTables[cmdName].add(newLit(cmdName))
-
-      if not caseTables.hasKey(cmdName):
-        caseTables[cmdName] = newNimNode(nnkCaseStmt)
-      
-        caseTables[cmdName].add(
-          newCall(
-            "getPath",
-            ident("req")
-          )
-        )
-
-      var stmt = newNimNode(nnkOfBranch)
-      stmt.add(newLit(cmdPath))
-      create(body, stmt, i)
-      caseTables[cmdName].add(stmt)
-    else:
-      discard
-
-  var elseMethod = newNimNode(nnkElse)
-
-  elseMethod.add(
-    newStmtList(
-      newNimNode(nnkCommand).add(
-        newIdentNode("asyncCheck"),
-        newCall(
-          "notFound",
-          ident("res")
-        )
-      )
-    )
-  )
-
-  for k, v in caseTables.pairs:
-    v.add(elseMethod)
-    methodTables[k].add(v)
-
-  for k, v in methodTables.pairs:
-    methodCase.add(v)
-
-  methodCase.add(elseMethod)
-
-  result.add(methodCase)
-
-macro routesWithPattern*(body: untyped): typed =
   result = newStmtList()
 
   var
