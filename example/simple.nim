@@ -37,4 +37,4 @@ proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
 # mofuwRun(cb = handler)
 #####
 
-mofuwRun(8080, 128, 512, handler)
+handler.mofuwRun(8080, 128, 512)

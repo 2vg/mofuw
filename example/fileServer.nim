@@ -14,4 +14,4 @@ proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
 #   post "/user/create":
 #     echo "created: " & req.body
 
-mofuwRun(8080, 128, 512, handler)
+handler.mofuwRun(8080, 128, 512)
