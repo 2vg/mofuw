@@ -161,9 +161,10 @@ proc run(port: int, backlog: int, bufSize: int, cb: Callback) {.thread.} =
 
   waitFor mofuwInit(port, backlog, bufSize)
 
-proc mofuwRun*(port: int = 8080, backlog: int = SOMAXCONN,
-              bufSize: int = defaultBufferSize,
-              cb: Callback) =
+proc mofuwRun*(cb: Callback,
+               port: int = 8080,
+               backlog: int = SOMAXCONN,
+               bufSize: int = defaultBufferSize) =
 
   if cb == nil:
     raise newException(Exception, "callback is nil.")
