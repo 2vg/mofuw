@@ -182,6 +182,13 @@ proc hash(str: string): Hash =
 
   result = !$h
 
+template mofuwResp*(status, mime, body: string): typed =
+  await mofuwSend(makeResp(
+    status,
+    mime,
+    body
+  ))
+
 macro routes*(body: untyped): typed =
   result = newStmtList()
 
