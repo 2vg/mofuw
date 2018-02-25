@@ -3,25 +3,19 @@ import mofuw
 proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
   routes:
     get "/":
-      await res.mofuwSend(makeResp(
-        HTTP200,
-        "text/plain",
-        "Hello, World!"
-      ))
+      mofuwResp(HTTP200, "text/plain", "Hello, World!")
 
     get "/user/@id":
-      await res.mofuwSend(makeResp(
+      mofuwResp(
         HTTP200,
         "text/plain",
-        "Hello, " & req.params["id"] & "!"
-      ))
+        "Hello, " & req.params["id"] & "!")
 
     post "/create":
-      await res.mofuwSend(makeResp(
+      mofuwResp(
         HTTP200,
         "text/plain",
-        "created: " & req.body
-      ))
+        "created: " & req.body)
 
 #####
 # mofuwRun's Param
