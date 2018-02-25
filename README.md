@@ -61,7 +61,7 @@ minimal example is this 👇
 ```nim
 import mofuw
 
-mofuw.callback = proc(req: mofuwReq, res: mofuwRes) {.async.} =
+proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
   routes:
     get "/":
       await res.mofuwSend(makeResp(
@@ -70,7 +70,7 @@ mofuw.callback = proc(req: mofuwReq, res: mofuwRes) {.async.} =
         "Hello, World!"
       ))
 
-mofuwRun() # default listening port: 8080
+mofuwRUN(cb = handler) # default listening port: 8080
 ```
 
 W O W, super E A S Y !!!!!! AMAZING !!!!!!!
