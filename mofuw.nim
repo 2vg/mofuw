@@ -183,7 +183,7 @@ proc hash(str: string): Hash =
   result = !$h
 
 template mofuwResp*(status, mime, body: string): typed =
-  await mofuwSend(makeResp(
+  asyncCheck mofuwSend(makeResp(
     status,
     mime,
     body
