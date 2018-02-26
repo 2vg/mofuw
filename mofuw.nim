@@ -11,9 +11,13 @@ import
   nativesockets
 
 when defined(windows):
-  from winlean import TCP_NODELAY
+  from winlean import TCP_NODELAY, WSAEWOULDBLOCK
+
+  const EAGAIN = WSAEWOULDBLOCK
 else:
-  from posix import TCP_NODELAY
+  from posix import TCP_NODELAY, EAGAIN
+
+from os import osLastError
 
 import
   lib/httputils,
@@ -99,6 +103,15 @@ proc getHeader*(req: mofuwReq, name: string): string {.inline.} =
       return
   result = ""
 
+proc mofuwSend2*(res: mofuwRes, body: string) {.async.} =
+  var
+    buf: string
+    len = body.len
+
+  shallowcopy(buf, body)
+
+  discard res.fd.SocketHandle.send(addr(buf[0]), len, 0)
+
 proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
   var buf: string
 
@@ -119,7 +132,7 @@ include middleware/staticServe/mofuwStaticServe
 
 proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
   if cacheTables.hasKey(path):
-    await res.mofuwSend(cacheTables[path])
+    asyncCheck res.mofuwSend2(cacheTables[path])
     return
   else:
     let buf = makeResp(
@@ -128,7 +141,7 @@ proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
       body
     )
 
-    await res.mofuwSend(buf)
+    asyncCheck res.mofuwSend2(buf)
 
     cacheTables[path] = buf
 
@@ -141,6 +154,51 @@ proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
       result = false
 
     addTimer(1000, false, cacheCB)
+
+proc cHandler(fd: AsyncFD): bool =
+  const
+    bufSize = 256
+
+  var
+    buf: array[bufSize, char]
+    request = mofuwReq(body: "")
+    response = mofuwRes(fd: fd)
+
+  while true:
+    let r = fd.SocketHandle.recv(addr(buf[0]), bufSize, 0)
+
+    if r == 0:
+      closeSocket(fd)
+      return true
+    elif r < 0:
+      if osLastError().int in {EAGAIN}:
+        break
+      closeSocket(fd)
+      return true
+
+    request.body.add(addr(buf[0]))
+
+  request.headerAddr = addr(request.header)
+
+  let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
+
+  if r <= 0:
+    asyncCheck response.mofuwSend(notFound())
+    closeSocket(fd)
+    return true
+
+  request.body = $(addr(buf[r]))
+
+  var body = makeResp(
+    HTTP200,
+    "text/plain",
+    "Hello, World!"
+  )
+
+  #discard fd.SocketHandle.send(addr(body[0]), body.len, 0)
+  asyncCheck callback(request, response)
+
+  return false
 
 proc handler(fd: AsyncFD) {.async.} =
   while true:
@@ -205,7 +263,8 @@ proc mofuwInit(port: int, backlog: int, bufSize: int, tables: TableRef[string, s
 
     client.SocketHandle.setBlocking(false)
 
-    asyncCheck handler(client)
+    #asyncCheck handler(client)
+    addRead(client, cHandler)
 
 proc run(port: int, backlog: int, bufSize: int, cb: Callback,
          tables: TableRef[string, string]) {.thread.} =
@@ -229,7 +288,7 @@ proc mofuwRun*(cb: Callback,
   sync()
 
 template mofuwResp*(status, mime, body: string): typed =
-  asyncCheck res.mofuwSend(makeResp(
+  asyncCheck res.mofuwSend2(makeResp(
     status,
     mime,
     body
