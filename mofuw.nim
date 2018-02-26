@@ -133,7 +133,10 @@ proc handler(fd: AsyncFD) {.async.} =
 
       request.body = $(addr(buf[r]))
 
-      await callback(request, response)
+      proc soon() =
+        asyncCheck callback(request, response)
+      
+      callSoon(soon)
 
 proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
