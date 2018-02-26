@@ -48,8 +48,9 @@ const
   maxBodySize = 1 * mByte
 
 var
+  cacheTables {.threadvar.}: TableRef[string, string]
   callback    {.threadvar.}: Callback
-  bufferSize*  {.threadvar.}: int
+  bufferSize* {.threadvar.}: int
 
 proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
   let server = newSocket()
@@ -67,6 +68,14 @@ proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
   server.listen(backlog.cint)
 
   return server.getFd()
+
+proc hash(str: string): Hash =
+  var h = 0
+  
+  for v in str:
+    h = h !& v.int
+
+  result = !$h
 
 proc getMethod*(req: mofuwReq): string {.inline.} =
   result = ($(req.line.method))[0 .. req.line.methodLen]
@@ -91,12 +100,40 @@ proc getHeader*(req: mofuwReq, name: string): string {.inline.} =
   result = ""
 
 proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
-  await send(res.fd, body)
+  var buf: string
+
+  shallowcopy(buf, body)
+
+  try:
+    await send(res.fd, addr(buf[0]), buf.len)
+  except:
+    closeSocket(res.fd)
 
 proc notFound*(res: mofuwRes) {.async.} =
   await mofuwSend(res, notFound())
 
 include middleware/staticServe/mofuwStaticServe
+
+proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
+  if cacheTables.hasKey(path):
+    await res.mofuwSend(cacheTables[path])
+    return
+  else:
+    cacheTables[path] = makeResp(
+      status,
+      mime,
+      body
+    )
+
+    proc cacheCB(fd: AsyncFD): bool =
+      cacheTables[path] = makeResp(
+        status,
+        mime,
+        body
+      )
+      result = false
+
+    addTimer(1000, false, cacheCB)
 
 proc handler(fd: AsyncFD) {.async.} =
   while true:
@@ -140,11 +177,13 @@ proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
   return false
 
-proc mofuwInit(port: int, backlog: int, bufSize: int) {.async.} =
+proc mofuwInit(port: int, backlog: int, bufSize: int, tables: TableRef[string, string]) {.async.} =
 
   let server = newServerSocket(port, backlog).AsyncFD
 
   bufferSize = bufSize
+
+  cacheTables = tables
 
   register(server)
 
@@ -157,10 +196,11 @@ proc mofuwInit(port: int, backlog: int, bufSize: int) {.async.} =
 
     asyncCheck handler(client)
 
-proc run(port: int, backlog: int, bufSize: int, cb: Callback) {.thread.} =
+proc run(port: int, backlog: int, bufSize: int, cb: Callback,
+         tables: TableRef[string, string]) {.thread.} =
   callback = cb
 
-  waitFor mofuwInit(port, backlog, bufSize)
+  waitFor mofuwInit(port, backlog, bufSize, tables)
 
 proc mofuwRun*(cb: Callback,
                port: int = 8080,
@@ -170,18 +210,12 @@ proc mofuwRun*(cb: Callback,
   if cb == nil:
     raise newException(Exception, "callback is nil.")
 
+  cacheTables = newTable[string, string]()
+
   for i in 0 ..< countProcessors():
-    spawn run(port, backlog, bufSize, cb)
+    spawn run(port, backlog, bufSize, cb, cacheTables)
 
   sync()
-
-proc hash(str: string): Hash =
-  var h = 0
-  
-  for v in str:
-    h = h !& v.int
-
-  result = !$h
 
 template mofuwResp*(status, mime, body: string): typed =
   asyncCheck res.mofuwSend(makeResp(
