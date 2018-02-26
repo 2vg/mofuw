@@ -189,13 +189,6 @@ proc cHandler(fd: AsyncFD): bool =
 
   request.body = $(addr(buf[r]))
 
-  var body = makeResp(
-    HTTP200,
-    "text/plain",
-    "Hello, World!"
-  )
-
-  #discard fd.SocketHandle.send(addr(body[0]), body.len, 0)
   asyncCheck callback(request, response)
 
   return false
