@@ -70,13 +70,12 @@ import mofuw
 proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
   routes:
     get "/":
-      await res.mofuwSend(makeResp(
+      mofuwResp(
         HTTP200,
         "text/plain",
-        "Hello, World!"
-      ))
+        "Hello, World!")
 
-mofuwRUN(cb = handler) # default listening port: 8080
+handler.mofuwRun() # default listening port: 8080
 ```
 
 W O W, super E A S Y !!!!!! AMAZING !!!!!!!
