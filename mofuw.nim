@@ -109,12 +109,10 @@ proc handler(fd: AsyncFD) {.async.} =
       var
         buf = ""
         request = mofuwReq(body: "")
-        response = mofuwRes()
+        response = mofuwRes(fd: fd)
 
       buf.add(recv)
       request.headerAddr = addr(request.header)
-
-      response.fd = fd
 
       if recv.len == bufferSize:
         while true:
