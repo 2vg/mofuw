@@ -122,11 +122,15 @@ proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
     await res.mofuwSend(cacheTables[path])
     return
   else:
-    cacheTables[path] = makeResp(
+    let buf = makeResp(
       status,
       mime,
       body
     )
+
+    await res.mofuwSend(buf)
+
+    cacheTables[path] = buf
 
     proc cacheCB(fd: AsyncFD): bool =
       cacheTables[path] = makeResp(
