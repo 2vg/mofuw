@@ -107,7 +107,10 @@ proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
   try:
     await send(res.fd, addr(buf[0]), buf.len)
   except:
-    closeSocket(res.fd)
+    try:
+      closeSocket(res.fd)
+    except:
+      discard
 
 proc notFound*(res: mofuwRes) {.async.} =
   await mofuwSend(res, notFound())
@@ -140,8 +143,12 @@ proc handler(fd: AsyncFD) {.async.} =
     let recv = await recv(fd, bufferSize)
 
     if recv == "":
-      closeSocket(fd)
-      break
+      try:
+        closeSocket(fd)
+      except:
+        discard
+      finally:
+        break
     else:
       var
         buf = ""
