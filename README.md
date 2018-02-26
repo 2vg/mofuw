@@ -118,7 +118,8 @@ this is a benchmark result of [techempower](https://www.techempower.com/benchmar
 
 ## Todo
 - [x] ~~header make proc(?)~~
-- [ ] Cache (memory buffer ? collab with redis ?)
+- [x] Cache (memory buffer ? collab with redis ?)
+- [ ] delete cache with timer;
 - [x] ~~File response (will soon complete)~~
 - [x] ~~routing (now support GET, POST, PATCH, PUT, DELETE, OPTIONS only, want to finish it early)~~
 - [x] ~~multi-thread (this need ?)~~
