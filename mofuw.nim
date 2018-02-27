@@ -11,11 +11,11 @@ import
   nativesockets
 
 when defined(windows):
-  import winlean
+  from winlean import TCP_NODELAY, EAGAIN
 
   const EAGAIN = WSAEWOULDBLOCK
 else:
-  import posix
+  from posix import TCP_NODELAY, EAGAIN
 
 from os import osLastError
 
