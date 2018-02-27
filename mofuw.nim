@@ -11,11 +11,11 @@ import
   nativesockets
 
 when defined(windows):
-  from winlean import TCP_NODELAY, WSAEWOULDBLOCK
+  import winlean
 
   const EAGAIN = WSAEWOULDBLOCK
 else:
-  from posix import TCP_NODELAY, EAGAIN
+  import posix
 
 from os import osLastError
 
@@ -106,11 +106,13 @@ proc getHeader*(req: mofuwReq, name: string): string {.inline.} =
 proc mofuwSend2*(res: mofuwRes, body: string) {.async.} =
   var
     buf: string
-    len = body.len
 
   shallowcopy(buf, body)
 
-  discard res.fd.SocketHandle.send(addr(buf[0]), len, 0)
+  when defined(windows):
+    await send(res.fd, addr(buf[0]), buf.len)
+  else:
+    discard res.fd.SocketHandle.send(addr(buf[0]), buf.len, 0)
 
 proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
   var buf: string
@@ -256,8 +258,10 @@ proc mofuwInit(port: int, backlog: int, bufSize: int, tables: TableRef[string, s
 
     client.SocketHandle.setBlocking(false)
 
-    #asyncCheck handler(client)
-    addRead(client, cHandler)
+    when defined(windows):
+      asyncCheck handler(client)
+    else:
+      addRead(client, cHandler)
 
 proc run(port: int, backlog: int, bufSize: int, cb: Callback,
          tables: TableRef[string, string]) {.thread.} =
