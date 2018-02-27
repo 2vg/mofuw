@@ -11,7 +11,7 @@ import
   nativesockets
 
 when defined(windows):
-  from winlean import TCP_NODELAY, EAGAIN
+  from winlean import TCP_NODELAY, WSAEWOULDBLOCK
 
   const EAGAIN = WSAEWOULDBLOCK
 else:
