@@ -455,10 +455,6 @@ macro routes*(body: untyped): typed =
 
   result.add(methodCase)
 
-template routesStatic*(filePath: string, body: untyped): typed =
-  var fut = serveStatic(req, res, filepath)
-
-  fut.callback = proc() =
-    if not fut.read:
-      routes:
-        body
+template staticRoot*(filePath: string, body: untyped): typed =
+  if not(var fut = serveStatic(req, res, filepath); yield fut; fut.read):
+    body
