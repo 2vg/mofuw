@@ -78,11 +78,32 @@ proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
 handler.mofuwRun() # default listening port: 8080
 ```
 
+want serve static file ? OKOK, no problem.
+
+can use `routesStatic` macro.
+
+```nim
+import mofuw
+
+proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
+  # public directory serving.
+  routesStatic "public":
+    get "/api/hello":
+      mofuwResp(
+        HTTP200,
+        "text/plain",
+        "Hello, World!")
+
+handler.mofuwRun()
+```
+
 W O W, super E A S Y !!!!!! AMAZING !!!!!!!
 
 and...... hyper F A S T !!!!!!! YEAHHHHHHHHHHH.....
 
 if you will using mofuw, you will be very surprised.
+
+if you want to see more example, see [example](https://github.com/2vg/mofuw/tree/master/example)
 
 ## Feature
 - high-performance
