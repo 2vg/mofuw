@@ -442,7 +442,7 @@ macro routes*(body: untyped): typed =
 
   result.add(methodCase)
 
-macro routes*(filePath: string, body: untyped): typed =
+macro routesStatic*(filePath: string, body: untyped): typed =
   result = newStmtList()
 
   var
