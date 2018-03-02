@@ -11,8 +11,6 @@ file.close()
 
 proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
   routesStatic "public":
-    get "/hello":
-      mofuwResp(HTTP200, "text/plain", "Hello, World!")
     get "/api/todo/get":
       var json = %* []
 
