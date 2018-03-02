@@ -7,7 +7,7 @@ import mofuw
 #   discard (or something route.)
 
 proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
-  routes "./":
+  routesStatic "./":
     discard
 
 # routes "./":
