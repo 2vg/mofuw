@@ -158,11 +158,9 @@ proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
     addTimer(1000, false, cacheCB)
 
 proc cHandler(fd: AsyncFD): bool =
-  const
-    bufSize = 256
-
   var
-    buf: array[bufSize, char]
+    bufSize = bufferSize
+    buf = newString(bufSize)
     request = mofuwReq(body: "")
     response = mofuwRes(fd: fd)
 
@@ -324,10 +322,158 @@ macro routes*(body: untyped): typed =
         caseTables[cmdName].add(
           newNimNode(nnkVarSection).add(
             newNimNode(nnkIdentDefs).add(
-              ident("flag"), 
-              newNimNode(nnkEmpty),
-              ident("true")
+              ident("pat"), 
+              ident("Pattern"),
+              newNimNode(nnkEmpty)
             ),
+            newNimNode(nnkIdentDefs).add(
+              ident("re"), 
+              newNimNode(nnkTupleTy).add(
+                newNimNode(nnkIdentDefs).add(
+                  ident("matched"), 
+                  ident("bool"),
+                  newNimNode(nnkEmpty)
+                ),
+                newNimNode(nnkIdentDefs).add(
+                  ident("params"), 
+                  ident("StringTableRef"),
+                  newNimNode(nnkEmpty)
+                )
+              ),
+              newNimNode(nnkEmpty)
+            ),
+            newNimNode(nnkIdentDefs).add(
+              ident("path"), 
+              newNimNode(nnkEmpty),
+              newCall(
+                "getPath",
+                ident("req")
+              )
+            )
+          ),
+          newBlockStmt(
+            ident("router"),
+            newStmtList()
+          )
+        )
+
+      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
+        newAssignment(
+          ident("pat"),
+          newCall(
+            ident("parsePattern"),
+            newStrLitNode(cmdPath)
+          )
+        )
+      )
+
+      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
+        newAssignment(
+          ident("re"),
+          newCall(
+            ident("match"),
+            ident("pat"),
+            ident("path")
+          )
+        )
+      )
+
+      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
+        newAssignment(
+          newDotExpr(
+            ident("req"),
+            ident("params")
+          ),
+          newDotExpr(
+            ident("re"),
+            ident("params")
+          )
+        )
+      )
+
+      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
+        newIfStmt(
+          (newDotExpr(
+            ident("re"),
+            ident("matched")
+          ),
+          body[i][2].add(
+            parseStmt("break router")
+          ))
+        )
+      )
+    else:
+      discard
+
+  var
+    nFound = newStmtList()
+    elseMethod = newNimNode(nnkElse)
+
+  nFound.add(
+    newNimNode(nnkCommand).add(
+      newIdentNode("asyncCheck"),
+      newCall(
+        "notFound",
+        ident("res")
+      )
+    )
+  )
+
+  elseMethod.add(
+    newStmtList(
+      newNimNode(nnkCommand).add(
+        newIdentNode("asyncCheck"),
+        newCall(
+          "notFound",
+          ident("res")
+        )
+      )
+    )
+  )
+
+  for k, v in caseTables.pairs:
+    v.findChild(it.kind == nnkBlockStmt)[1].add(nFound)
+    methodTables[k].add(v)
+
+  for k, v in methodTables.pairs:
+    methodCase.add(v)
+
+  methodCase.add(elseMethod)
+
+  result.add(methodCase)
+
+macro routes*(filePath: string, body: untyped): typed =
+  result = newStmtList()
+
+  var
+    methodCase = newNimNode(nnkCaseStmt)
+    methodTables = initTable[string, NimNode]()
+    caseTables = initTable[string, NimNode]()
+
+  methodCase.add(
+    newCall(
+      "getMethod",
+      ident("req")
+    )
+  )
+
+  for i in 0 ..< body.len:
+    case body[i].kind
+    of nnkCommand:
+      let
+        cmdName = body[i][0].ident.`$`.normalize.toUpperAscii()
+        cmdPath = $body[i][1]
+
+      if not methodTables.hasKey(cmdName):
+        methodTables[cmdName] = newNimNode(nnkOfBranch)
+
+        methodTables[cmdName].add(newLit(cmdName))
+
+      if not caseTables.hasKey(cmdName):
+        caseTables[cmdName] = newStmtList()
+
+        caseTables[cmdName].add(
+          newNimNode(nnkVarSection).add(
             newNimNode(nnkIdentDefs).add(
               ident("pat"), 
               ident("Pattern"),
@@ -399,18 +545,15 @@ macro routes*(body: untyped): typed =
       )
 
       caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
-        newIfStmt((
-          ident("flag"),
-          newIfStmt(
-            (newDotExpr(
-              ident("re"),
-              ident("matched")
-            ),
-            body[i][2].add(
-              parseStmt("break router")
-            ))
-          )
-        ))
+        newIfStmt(
+          (newDotExpr(
+            ident("re"),
+            ident("matched")
+          ),
+          body[i][2].add(
+            parseStmt("break router")
+          ))
+        )
       )
     else:
       discard
@@ -420,15 +563,49 @@ macro routes*(body: untyped): typed =
     elseMethod = newNimNode(nnkElse)
 
   nFound.add(
-    newIfStmt(
-      (ident("flag"),
-      newNimNode(nnkCommand).add(
-        newIdentNode("asyncCheck"),
+    newNimNode(nnkVarSection).add(
+      newNimNode(nnkIdentDefs).add(
+        ident("fut"), 
+        newNimNode(nnkEmpty),
         newCall(
-          "notFound",
-          ident("res")
+          "serveStatic",
+          ident("req"),
+          ident("res"),
+          newStrLitNode(strVal(filePath))
         )
-      ))
+      ),
+    ),
+    newAssignment(
+      newDotExpr(
+        ident("fut"),
+        ident("callback")
+      ),
+      newNimNode(nnkLambda).add(
+        newNimNode(nnkEmpty),
+        newNimNode(nnkEmpty),
+        newNimNode(nnkEmpty),
+        newNimNode(nnkFormalParams).add(
+          newNimNode(nnkEmpty)
+        ),
+        newNimNode(nnkEmpty),
+        newNimNode(nnkEmpty),
+        newStmtList().add(
+          newNimNode(nnkIfStmt).add(
+            newNimNode(nnkElifBranch).add(
+              newNimNode(nnkPrefix).add(
+                ident("not"),
+                newDotExpr(
+                  ident("fut"),
+                  ident("read")
+                )
+              ),
+              newStmtList().add(
+                parseStmt("asyncCheck notFound(res)")
+              )
+            )
+          )
+        )
+      )
     )
   )
 
@@ -454,7 +631,3 @@ macro routes*(body: untyped): typed =
   methodCase.add(elseMethod)
 
   result.add(methodCase)
-
-template staticRoot*(filePath: string, body: untyped): typed =
-  if not(var fut = serveStatic(req, res, filepath); yield fut; fut.read):
-    body
