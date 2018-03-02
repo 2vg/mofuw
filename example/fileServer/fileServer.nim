@@ -3,14 +3,14 @@ import mofuw
 # want static file serve, use routeStatic.
 # for example,
 #
-# routesStatic "/want/serve/path":
+# routes "/want/serve/path":
 #   discard (or something route.)
 
 proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
-  routesStatic "./":
+  routes "./":
     discard
 
-# routesStatic "./":
+# routes "./":
 #   post "/user/create":
 #     echo "created: " & req.body
 
