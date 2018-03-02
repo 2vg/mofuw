@@ -30,12 +30,12 @@ asyncdispatch is very easy to use and excellent in handling asynchronous IO.
 A. **No**. but, tired of memory management lel.
 
 ## Require
-- nim (nim-devel)
+- Nim >= 0.18.0
 
 ## Setup
 before mofuw install, 
 
-need nim devel setup.
+need Nim setup.
 
 ```shell
 sh setup.sh
@@ -52,7 +52,7 @@ mofuw is non need B U I L D.
 
 install is need only `git clone`.
 
-of course, installed nim devel.
+of course, installed Nim >= 0.18.0.
 
 see [setup](https://github.com/2vg/mofuw/blob/master/README.md#setup) section.
 
