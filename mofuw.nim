@@ -52,7 +52,7 @@ const
 var
   cacheTables {.threadvar.}: TableRef[string, string]
   callback    {.threadvar.}: Callback
-  bufferSize* {.threadvar.}: int
+  bufferSize  {.threadvar.}: int
 
 proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
   let server = newSocket()
