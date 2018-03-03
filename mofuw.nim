@@ -157,83 +157,84 @@ proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
 
     addTimer(1000, false, cacheCB)
 
-proc cHandler(fd: AsyncFD): bool =
-  var
-    bufSize = bufferSize
-    buf = newString(bufSize)
-    request = mofuwReq(body: "")
-    response = mofuwRes(fd: fd)
+when defined(windows):
+  proc handler(fd: AsyncFD) {.async.} =
+    while true:
+      let recv = await recv(fd, bufferSize)
 
-  while true:
-    let r = fd.SocketHandle.recv(addr(buf[0]), bufSize, 0)
+      if recv == "":
+        try:
+          closeSocket(fd)
+        except:
+          discard
+        finally:
+          break
+      else:
+        var
+          buf = ""
+          request = mofuwReq(body: "")
+          response = mofuwRes(fd: fd)
 
-    if r == 0:
-      closeSocket(fd)
-      return true
-    elif r < 0:
-      if osLastError().int in {EAGAIN}:
-        break
-      closeSocket(fd)
-      return true
+        buf.add(recv)
+        request.headerAddr = addr(request.header)
 
-    request.body.add(addr(buf[0]))
+        if recv.len == bufferSize:
+          while true:
+            let recv = await recv(fd, bufferSize)
 
-  request.headerAddr = addr(request.header)
-
-  let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
-
-  if r <= 0:
-    asyncCheck response.mofuwSend(notFound())
-    closeSocket(fd)
-    return true
-
-  request.body = $(addr(buf[r]))
-
-  asyncCheck callback(request, response)
-
-  return false
-
-proc handler(fd: AsyncFD) {.async.} =
-  while true:
-    let recv = await recv(fd, bufferSize)
-
-    if recv == "":
-      try:
-        closeSocket(fd)
-      except:
-        discard
-      finally:
-        break
-    else:
-      var
-        buf = ""
-        request = mofuwReq(body: "")
-        response = mofuwRes(fd: fd)
-
-      buf.add(recv)
-      request.headerAddr = addr(request.header)
-
-      if recv.len == bufferSize:
-        while true:
-          let recv = await recv(fd, bufferSize)
-
-          if recv == "":
-            break
+            if recv == "":
+              break
 
           buf.add(recv)
 
-      let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
+        let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
 
-      if r <= 0:
-        await response.mofuwSend(notFound())
-        buf.setLen(0)
+        if r <= 0:
+          await response.mofuwSend(notFound())
+          buf.setLen(0)
 
-      request.body = $(addr(buf[r]))
+        request.body = $(addr(buf[r]))
 
-      proc soon() =
-        asyncCheck callback(request, response)
+        proc soon() =
+          asyncCheck callback(request, response)
       
-      callSoon(soon)
+        callSoon(soon)
+else:
+  proc handler(fd: AsyncFD): bool =
+    var
+      bufSize = bufferSize
+      buf = newString(bufSize)
+      request = mofuwReq(body: "")
+      response = mofuwRes(fd: fd)
+  
+    while true:
+      let r = fd.SocketHandle.recv(addr(buf[0]), bufSize, 0)
+  
+      if r == 0:
+        closeSocket(fd)
+        return true
+      elif r < 0:
+        if osLastError().int in {EAGAIN}:
+          break
+        closeSocket(fd)
+        return true
+  
+      request.body.add(addr(buf[0]))
+  
+    request.headerAddr = addr(request.header)
+  
+    let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
+  
+    if r <= 0:
+      asyncCheck response.mofuwSend(notFound())
+      closeSocket(fd)
+      return true
+  
+    request.body = $(addr(buf[r]))
+  
+    asyncCheck callback(request, response)
+  
+    return false
 
 proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
@@ -259,7 +260,7 @@ proc mofuwInit(port: int, backlog: int, bufSize: int, tables: TableRef[string, s
     when defined(windows):
       asyncCheck handler(client)
     else:
-      addRead(client, cHandler)
+      addRead(client, handler)
 
 proc run(port: int, backlog: int, bufSize: int, cb: Callback,
          tables: TableRef[string, string]) {.thread.} =
