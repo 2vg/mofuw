@@ -146,6 +146,13 @@ this is a benchmark result of [techempower](https://www.techempower.com/benchmar
 - [x] ~~routing (now support GET, POST, PATCH, PUT, DELETE, OPTIONS only, want to finish it early)~~
 - [x] ~~multi-thread (this need ?)~~
 
+## Contribute
+**Pull requests are welcome !!!!!**
+
+I am looking for someone who develops mofuw together.
+
+Especially if there are people who can speed up and refactor it is the best!
+
 ## Special Thanks
 - [jester](https://github.com/dom96/jester) (using jester's pattern and utils, and study macro)
 
