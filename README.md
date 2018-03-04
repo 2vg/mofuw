@@ -73,7 +73,8 @@ proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
       mofuwResp(
         HTTP200,
         "text/plain",
-        "Hello, World!")
+        "Hello, World!"
+      )
 
 handler.mofuwRun() # default listening port: 8080
 ```
@@ -92,7 +93,8 @@ proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
       mofuwResp(
         HTTP200,
         "text/plain",
-        "Hello, World!")
+        "Hello, World!"
+      )
 
 handler.mofuwRun()
 ```
