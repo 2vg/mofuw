@@ -18,14 +18,14 @@ because using asyncdispatch, and using fast parser.
 
 about my parser, check [mofuparser](https://github.com/2vg/mofuparser)
 
-## Why changeed using libuv to asyncdispatch ?
+## Why changed using libuv to asyncdispatch ?
 - Why ?
 
 A. because asyncdispatch is great module than libuv.
 
 asyncdispatch is very easy to use and excellent in handling asynchronous IO.
 
-- not like libuv ?
+- dislike libuv ?
 
 A. **No**. but, tired of memory management lel.
 
