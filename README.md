@@ -3,6 +3,12 @@
 [![Author: 2vg](https://img.shields.io/badge/mofuw-%C2%B0%CA%9A%20%C9%9E%C2%B0-green.svg)](https://github.com/2vg/mofuw)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
+> **MO**re **F**ast **U**ltra **W**eb server.
+
+> もふぅ ꒰ᐡ - ﻌ - ᐡ꒱ ♡ @2vg
+
+> ~~mofuw is **M**eccha hayai Asynchronous I/**O** no super **F**ast de **U**ltra minimal na **W**eb server on Nim.~~
+
 ## Build Status
 
 #### Linux: [![Build Status](https://semaphoreci.com/api/v1/2vg/mofuw/branches/master/badge.svg)](https://semaphoreci.com/2vg/mofuw)
@@ -11,11 +17,9 @@
 
 #### Windows: [![Build status](https://ci.appveyor.com/api/projects/status/m6g40k0fd3m1w08t?svg=true)](https://ci.appveyor.com/project/2vg/mofuw)
 
-> **MO**re **F**ast **U**ltra **W**eb server.
+## Why is Windows at the bottom of build status section ?
 
-> もふぅ ꒰ᐡ - ﻌ - ᐡ꒱ ♡ @2vg
-
-> ~~mofuw is **M**eccha hayai Asynchronous I/**O** no super **F**ast de **U**ltra minimal na **W**eb server on Nim.~~
+A. because Windows is shitty.
 
 ## Warning
 mofuw is now developping.
@@ -37,10 +41,6 @@ asyncdispatch is very easy to use and excellent in handling asynchronous IO.
 - dislike libuv ?
 
 A. **No**. but, tired of memory management lel.
-
-- Why is Windows at the bottom of build status section ?
-
-A. because Windows is shitty.
 
 ## Require
 - Nim >= 0.18.0
