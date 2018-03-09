@@ -266,9 +266,24 @@ proc run(port: int, backlog: int, bufSize: int, cb: Callback,
 
   waitFor mofuwInit(port, backlog, bufSize, tables)
 
+proc defaultBacklog(): int =
+  when defined(linux):
+    proc fscanf(c: File, frmt: cstring): cint {.varargs, importc,
+      header: "<stdio.h>".}
+    var backlog: int = SOMAXCONN
+    var f: File
+    var tmp: int
+    if f.open("/proc/sys/net/core/somaxconn"): # See `man 2 listen`.
+      if fscanf(f, "%d", tmp.addr) == cint(1):
+        backlog = tmp
+      f.close
+    return backlog
+  else:
+    return SOMAXCONN
+
 proc mofuwRun*(cb: Callback,
                port: int = 8080,
-               backlog: int = SOMAXCONN,
+               backlog: int = defaultBacklog(),
                bufSize: int = defaultBufferSize) =
 
   if cb == nil:
