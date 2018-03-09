@@ -32,6 +32,11 @@ A. **No**. but, tired of memory management lel.
 ## Require
 - Nim >= 0.18.0
 
+## Support Platforms
+- Windows10 (tested on x64)
+- Linux
+- MacOSX
+
 ## Setup
 before mofuw install, 
 
