@@ -1,4 +1,5 @@
-import mofuw
+import
+  mofuw
 
 # want static file serve, use routeStatic.
 # for example,

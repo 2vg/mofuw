@@ -4,7 +4,8 @@ version       = "0.1.0"
 author        = "2vg"
 description   = "more faster, ultra performance webserver"
 license       = "MIT"
-skipDirs = @["images", "tests"]
+srcDir        = "src"
+skipDirs      = @["images"]
 
 # Dependencies
 
