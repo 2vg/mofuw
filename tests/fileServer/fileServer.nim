@@ -1,5 +1,6 @@
 import
-  mofuw
+  mofuw,
+  mofuw/middleware/staticServe/mofuwStaticServe
 
 # want static file serve, use routeStatic.
 # for example,
