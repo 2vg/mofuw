@@ -1,4 +1,10 @@
-import mofuw, json, db_sqlite, random, os
+import
+  os,
+  json,
+  mofuw,
+  random,
+  db_sqlite,
+  mofuw/middleware/staticServe/mofuwStaticServe
 
 let
   db = open("todo.db", nil, nil, nil)
