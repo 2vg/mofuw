@@ -34,7 +34,7 @@ before_script:
     - export PATH="nim-$BRANCH/bin${PATH:+:$PATH}"
 script:
     # Replace uppercase strings!
-    - nim c --cc:$CC --verbosity:0 src/mofuw
+    - nim c --cc:$CC --verbosity:0 -f -o:"mofuw.out" src/mofuw
     # Optional: build docs.
     # - nim doc --docSeeSrcUrl:https://github.com/AUTHOR/MYPROJECT/blob/master --project MYFILE.nim
 cache:
