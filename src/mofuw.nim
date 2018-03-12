@@ -24,7 +24,7 @@ import
   mofuw/jesterUtils
 
 export
-  strtabs.`[]`,
+  strtabs,
   httputils,
   asyncdispatch,
   jesterPatterns
