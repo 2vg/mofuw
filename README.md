@@ -55,26 +55,34 @@ before mofuw install,
 
 need Nim setup.
 
+※ this is *Nim-devel*.
+
 ```shell
-sh setup.sh
+curl -L https://github.com/2vg/mofuw/raw/master/setup.sh | sh
 ```
 
 after setup, need add /bin directory path to PATH.
 
 ## Usage
-see [example](https://github.com/2vg/mofuw/blob/master/example)
+see [tests](https://github.com/2vg/mofuw/blob/master/tests)
 
 you want to ask how to build ? B U I L D ? hahaha, is joke ?
 
 mofuw is non need B U I L D.
 
-install is need only `git clone`.
+install is need only `nimble install` or `git clone`.
 
 of course, installed Nim >= 0.18.0.
 
 see [setup](https://github.com/2vg/mofuw/blob/master/README.md#setup) section.
 
 ```sh
+nimble install mofuw
+```
+
+or,
+
+```
 git clone https://github.com/2vg/mofuw
 ```
 
@@ -99,10 +107,12 @@ handler.mofuwRun() # default listening port: 8080
 
 want serve static file ? OKOK, no problem.
 
-can use `routesStatic` macro.
+can use mofuw's middleware, and can use `routesStatic` macro.
 
 ```nim
-import mofuw
+import
+  mofuw,
+  mofuw/middleware/staticServe/mofuwStaticServe
 
 proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
   # public directory serving.
@@ -123,7 +133,7 @@ and...... hyper F A S T !!!!!!! YEAHHHHHHHHHHH.....
 
 if you will using mofuw, you will be very surprised.
 
-if you want to see more example, see [example](https://github.com/2vg/mofuw/tree/master/example)
+if you want to see more example, see [tests](https://github.com/2vg/mofuw/tree/master/tests)
 
 ## Feature
 - high-performance
