@@ -26,6 +26,6 @@ install:
   - SET PATH=%CD%\tools_tmp\%NIM_DIR%\bin;%CD%\tools_tmp\%MINGW_DIR%\bin;%PATH%
 
 build_script:
-  - nim.exe c mofuw
+  - nim.exe c src/mofuw
 
 deploy: off
