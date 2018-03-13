@@ -250,7 +250,17 @@ proc mofuwInit(port: int, backlog: int, bufSize: int, tables: TableRef[string, s
   addTimer(1000, false, updateTime)
 
   while true:
-    let client = await accept(server)
+    var
+      fut = accept(server)
+      client: AsyncFD
+    
+    yield fut
+
+    if fut.failed:
+      await sleepAsync(10)
+      continue
+
+    client = fut.read()
 
     client.SocketHandle.setBlocking(false)
 
