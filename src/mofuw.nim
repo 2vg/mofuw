@@ -87,18 +87,16 @@ proc getPath*(req: mofuwReq): string {.inline.} =
   result = ($(req.line.path))[0 .. req.line.pathLen]
 
 proc getCookie*(req: mofuwReq): string {.inline.} =
-  for v in req.header:
-    if v.name == nil: break
-    if ($(v.name))[0 .. v.namelen] == "Cookie":
-      result = ($(v.value))[0 .. v.valuelen]
+  for i in 0 ..< req.line.headerLen:
+    if ($(req.header[i].name))[0 .. req.header[i].namelen] == "Cookie":
+      result = ($(req.header[i].value))[0 .. req.header[i].valuelen]
       return
   result = ""
 
 proc getHeader*(req: mofuwReq, name: string): string {.inline.} =
-  for v in req.header:
-    if v.name == nil: break
-    if ($(v.name))[0 .. v.namelen] == name:
-      result = ($(v.value))[0 .. v.valuelen]
+  for i in 0 ..< req.line.headerLen:
+    if ($(req.header[i].name))[0 .. req.header[i].namelen] == name:
+      result = ($(req.header[i].value))[0 .. req.header[i].valuelen]
       return
   result = ""
 
@@ -277,11 +275,14 @@ proc run(port: int, backlog: int, bufSize: int, cb: Callback,
 
 proc defaultBacklog(): int =
   when defined(linux):
-    proc fscanf(c: File, frmt: cstring): cint {.varargs, importc,
-      header: "<stdio.h>".}
-    var backlog: int = SOMAXCONN
-    var f: File
-    var tmp: int
+    proc fscanf(c: File, frmt: cstring): cint
+      {.varargs, importc, header: "<stdio.h>".}
+
+    var
+      backlog: int = SOMAXCONN
+      f: File
+      tmp: int
+
     if f.open("/proc/sys/net/core/somaxconn"): # See `man 2 listen`.
       if fscanf(f, "%d", tmp.addr) == cint(1):
         backlog = tmp
