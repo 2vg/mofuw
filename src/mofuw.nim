@@ -15,6 +15,9 @@ when defined(windows):
 else:
   from posix import TCP_NODELAY, EAGAIN
 
+when defined(linux):
+  from posix import Pid
+
 from os import osLastError
 
 import
@@ -54,6 +57,24 @@ var
   cacheTables {.threadvar.}: TableRef[string, string]
   callback    {.threadvar.}: Callback
   bufferSize  {.threadvar.}: int
+
+proc countCPUs(): int =
+  when defined(linux):
+    const
+      schedh = "#define _GNU_SOURCE\n#include <sched.h>"
+    type CpuSet {.importc: "cpu_set_t", header: schedh.} = object
+      when defined(linux) and defined(amd64):
+        abi: array[1024 div (8 * sizeof(culong)), culong]
+    var set: CpuSet
+    proc sched_getAffinity(pid: Pid, cpusetsize: int, mask: var CpuSet): cint {.
+      importc: "sched_getaffinity", header: schedh.}
+    proc cpusetCount(s: var CpuSet): int {. importc: "CPU_COUNT", header: schedh.}
+    if sched_getAffinity(0, sizeof(CpuSet), set) == 0.cint:
+      return cpusetCount(set)
+    else:
+      return countProcessors()
+  else:
+    return countProcessors()
 
 proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
   let server = newSocket()
@@ -301,7 +322,7 @@ proc mofuwRun*(cb: Callback,
 
   cacheTables = newTable[string, string]()
 
-  for i in 0 ..< countProcessors():
+  for i in 0 ..< countCPUs():
     spawn run(port, backlog, bufSize, cb, cacheTables)
 
   sync()
