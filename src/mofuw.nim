@@ -247,8 +247,9 @@ else:
       request.body.add(addr(buf[0]))
 
       if request.body.len > maxBodySize:
-        await response.mofuwSend2(bodyTooLarge())
-        closeSocket(fd)
+        var fut = response.mofuwSend2(bodyTooLarge())
+        fut.callback = proc() =
+          closeSocket(fd)
         return true
   
     request.headerAddr = addr(request.header)
@@ -256,8 +257,9 @@ else:
     let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
 
     if r <= 0:
-      await response.mofuwSend(notFound())
-      closeSocket(fd)
+      var fut = response.mofuwSend2(notFound())
+      fut.callback = proc() =
+        closeSocket(fd)
       return true
   
     request.body = $(addr(buf[r]))
