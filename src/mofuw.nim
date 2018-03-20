@@ -192,6 +192,13 @@ when defined(windows):
           response = mofuwRes(fd: fd)
 
         buf.add(recv)
+
+        if buf.len > maxBodySize:
+          await response.mofuwSend(bodyTooLarge())
+          closeSocket(fd)
+          buf.setLen(0)
+          return
+
         request.headerAddr = addr(request.header)
 
         if recv.len == bufferSize:
@@ -207,7 +214,9 @@ when defined(windows):
 
         if r <= 0:
           await response.mofuwSend(notFound())
+          closeSocket(fd)
           buf.setLen(0)
+          return
 
         request.body = $(addr(buf[r]))
 
@@ -234,15 +243,20 @@ else:
           break
         closeSocket(fd)
         return true
-  
+
       request.body.add(addr(buf[0]))
+
+      if request.body.len > maxBodySize:
+        await response.mofuwSend2(bodyTooLarge())
+        closeSocket(fd)
+        return true
   
     request.headerAddr = addr(request.header)
   
     let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
-  
+
     if r <= 0:
-      asyncCheck response.mofuwSend(notFound())
+      await response.mofuwSend(notFound())
       closeSocket(fd)
       return true
   
