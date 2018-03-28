@@ -17,6 +17,7 @@ else:
 
 when defined(linux):
   from posix import Pid
+  const TCP_FASTOPEN = 23.cint
 
 from os import osLastError
 
@@ -84,6 +85,9 @@ proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
   server.setSockOpt(OptReusePort, true)
 
   server.getFD().setSockOptInt(cint(IPPROTO_TCP), TCP_NODELAY, 1)
+
+  when defined(linux):
+    server.getFD().setSockOptInt(cint(IPPROTO_TCP), TCP_FASTOPEN, 256)
 
   server.getFd.setBlocking(false)
 
