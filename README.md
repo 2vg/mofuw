@@ -144,7 +144,11 @@ if you want to see more example, see [tests](https://github.com/2vg/mofuw/tree/m
 - multi-thread event-loop.
 
 ## Benchmark
-see this benchmark result.
+Update(2018 - 04 - 07): mofuw is very fast :) [tbrand/which_is_the_fastest Issue#104](https://github.com/tbrand/which_is_the_fastest/issues/101#issuecomment-379293774)
+
+---
+
+see this my benchmark result.
 
 mofuw is more faster than [tokio-minihttp](https://github.com/tokio-rs/tokio-minihttp).
 
