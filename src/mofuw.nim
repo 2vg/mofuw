@@ -286,6 +286,8 @@ proc mofuwInit(port: int, backlog: int, bufSize: int, tables: TableRef[string, s
 
   register(server)
 
+  updateServerTime()
+
   addTimer(1000, false, updateTime)
 
   while true:
