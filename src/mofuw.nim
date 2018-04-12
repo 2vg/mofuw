@@ -256,7 +256,7 @@ else:
           closeSocket(fd)
         return true
 
-    shallow(request.bofy)
+    shallow(request.body)
     request.headerAddr = addr(request.header)
   
     let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
