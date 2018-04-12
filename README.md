@@ -9,6 +9,12 @@
 
 > ~~mofuw is **M**eccha hayai Asynchronous I/**O** no super **F**ast de **U**ltra minimal na **W**eb server on Nim.~~
 
+## Wanted!!
+
+looking for people who develop together for the development of mofuw!
+
+there are many things to do, such as adding functions, improving speed, bug fixing, etc. :)
+
 ## Build Status
 
 #### Linux: [![Build Status](https://semaphoreci.com/api/v1/2vg/mofuw/branches/master/badge.svg)](https://semaphoreci.com/2vg/mofuw)
