@@ -83,10 +83,19 @@ proc makeRespNoBody*(statusLine: string): string {.inline.}=
   result.add("\r\LDate: ")
   result.add(serverTime)
   result.add("\r\L")
-  shallow(result)
   #result.add("\r\LConnection: keep-alive\r\L")
 
-proc makeResp*(statusLine: string, mime: string, body: string, charset: string = "UTF-8"): string {.inline.}=
+proc makeResp*(statusLine: string, mime: string, body: string): string {.inline.}=
+  result = makeRespNoBody(statusLine)
+  result.add("Content-Type: ")
+  result.add(mime)
+  result.add("\r\LContent-Length: ")
+  result.add(body.len)
+  result.add("\r\L\r\L")
+  result.add(body)
+  shallow(result)
+
+proc makeResp*(statusLine: string, mime: string, body: string, charset: string): string {.inline.}=
   result = makeRespNoBody(statusLine)
   result.add("Content-Type: ")
   result.add(mime)
