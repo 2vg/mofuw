@@ -267,7 +267,7 @@ else:
         closeSocket(fd)
       return true
 
-    shallowcopy($(addr(buf[r])), request.body)
+    shallowcopy(request.body, buf[r ..< buf.len])
   
     asyncCheck callback(request, response)
   
