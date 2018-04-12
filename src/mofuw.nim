@@ -235,7 +235,7 @@ else:
       buf = newString(bufSize)
       request = mofuwReq(body: "")
       response = mofuwRes(fd: fd)
-  
+
     while true:
       let r = fd.SocketHandle.recv(addr(buf[0]), bufSize, 0)
   
@@ -255,7 +255,8 @@ else:
         fut.callback = proc() =
           closeSocket(fd)
         return true
-  
+
+    shallow(request.bofy)
     request.headerAddr = addr(request.header)
   
     let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
@@ -265,8 +266,8 @@ else:
       fut.callback = proc() =
         closeSocket(fd)
       return true
-  
-    request.body = $(addr(buf[r]))
+
+    shallowcopy($(addr(buf[r])), request.body)
   
     asyncCheck callback(request, response)
   
