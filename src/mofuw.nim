@@ -256,7 +256,6 @@ else:
           closeSocket(fd)
         return true
 
-    shallow(request.body)
     request.headerAddr = addr(request.header)
   
     let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
@@ -267,9 +266,11 @@ else:
         closeSocket(fd)
       return true
 
-    shallowcopy(request.body, buf[r ..< buf.len])
+    request.body = buf[r ..< buf.len]
   
-    asyncCheck callback(request, response)
+    var fut = callback(request, response)
+    fut.callback = proc() =
+      buf.setLen(0)
   
     return false
 
