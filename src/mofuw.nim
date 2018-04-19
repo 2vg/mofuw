@@ -231,12 +231,15 @@ when defined(windows):
 else:
   proc handler(fd: AsyncFD): bool =
     var
-      bufSize = bufferSize
-      buf = newString(bufSize)
+      rBuf = ""
       request = mofuwReq(body: "")
       response = mofuwRes(fd: fd)
 
     while true:
+      var
+        bufSize = bufferSize
+        buf = newString(bufSize)
+
       let r = fd.SocketHandle.recv(addr(buf[0]), bufSize, 0)
   
       if r == 0:
@@ -248,29 +251,31 @@ else:
         closeSocket(fd)
         return true
 
-      request.body.add(addr(buf[0]))
+      rBuf.add(addr(buf[0]))
 
-      if request.body.len > maxBodySize:
+      if rBuf.len > maxBodySize:
         var fut = response.mofuwSend2(bodyTooLarge())
         fut.callback = proc() =
           closeSocket(fd)
+          rBuf.setLen(0)
         return true
 
     request.headerAddr = addr(request.header)
   
-    let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
+    let r = mp_req(addr(rBuf[0]), request.line, request.headerAddr)
 
     if r <= 0:
       var fut = response.mofuwSend2(notFound())
       fut.callback = proc() =
         closeSocket(fd)
+        rBuf.setLen(0)
       return true
 
-    request.body = buf[r ..< buf.len]
-  
+    request.body = rBuf[r ..< buf.len]
+
     var fut = callback(request, response)
     fut.callback = proc() =
-      buf.setLen(0)
+      rBuf.setLen(0)
   
     return false
 
