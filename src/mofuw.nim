@@ -271,7 +271,7 @@ else:
         rBuf.setLen(0)
       return true
 
-    request.body = rBuf[r ..< buf.len]
+    request.body = rBuf[r ..< rBuf.len]
 
     var fut = callback(request, response)
     fut.callback = proc() =
