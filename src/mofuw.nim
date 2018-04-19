@@ -38,6 +38,7 @@ type
     line: HttpReq
     header: array[32, headers]
     headerAddr: ptr array[32, headers]
+    buf: string
     body*: string
     params*: StringTableRef
     tmp*: cstring
@@ -231,52 +232,53 @@ when defined(windows):
 else:
   proc handler(fd: AsyncFD): bool =
     var
-      rBuf = ""
-      request = mofuwReq(body: "")
+      request = mofuwReq(buf: "")
       response = mofuwRes(fd: fd)
 
     while true:
-      var
-        bufSize = bufferSize
-        buf = newString(bufSize)
-
-      let r = fd.SocketHandle.recv(addr(buf[0]), bufSize, 0)
+      let
+        buf = newStringOfCap(bufferSize)
+        r = fd.SocketHandle.recv(addr(buf[0]), bufferSize, 0)
   
       if r == 0:
         closeSocket(fd)
+        request.buf.setLen(0)
         return true
       elif r < 0:
         if osLastError().int in {EAGAIN}:
+          buf.setLen(0)
           break
         closeSocket(fd)
+        request.buf.setLen(0)
         return true
 
-      rBuf.add(addr(buf[0]))
+      request.buf.add(addr(buf[0]))
 
-      if rBuf.len > maxBodySize:
+      if request.buf.len > maxBodySize:
         var fut = response.mofuwSend2(bodyTooLarge())
         fut.callback = proc() =
           closeSocket(fd)
-          rBuf.setLen(0)
+          request.buf.setLen(0)
         return true
 
     request.headerAddr = addr(request.header)
   
-    let r = mp_req(addr(rBuf[0]), request.line, request.headerAddr)
+    let r = mp_req(addr(request.buf[0]), request.line, request.headerAddr)
 
     if r <= 0:
       var fut = response.mofuwSend2(notFound())
       fut.callback = proc() =
         closeSocket(fd)
-        rBuf.setLen(0)
+        request.buf.setLen(0)
       return true
 
-    request.body = rBuf[r ..< rBuf.len]
+    request.body = request.buf[r ..< request.buf.len]
 
     var fut = callback(request, response)
     fut.callback = proc() =
-      rBuf.setLen(0)
-  
+      request.buf.setLen(0)
+      request.body.setLen(0)
+
     return false
 
 proc updateTime(fd: AsyncFD): bool =
