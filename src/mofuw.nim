@@ -236,9 +236,8 @@ else:
       response = mofuwRes(fd: fd)
 
     while true:
-      let
-        buf = newStringOfCap(bufferSize)
-        r = fd.SocketHandle.recv(addr(buf[0]), bufferSize, 0)
+      var buf = newStringOfCap(bufferSize)
+      let r = fd.SocketHandle.recv(addr(buf[0]), bufferSize, 0)
   
       if r == 0:
         closeSocket(fd)
