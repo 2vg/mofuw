@@ -220,7 +220,7 @@ when defined(windows):
 else:
   proc handler(fd: AsyncFD): bool =
     var
-      request = mofuwReq(buf: "")
+      request = mofuwReq(buf: "", mhr: MPHTTPReq())
       response = mofuwRes(fd: fd)
 
     while true:
