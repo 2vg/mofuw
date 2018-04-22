@@ -35,9 +35,7 @@ export
 
 type
   mofuwReq* = ref object
-    line: HttpReq
-    header: array[32, headers]
-    headerAddr: ptr array[32, headers]
+    mhr: MPHTTPReq
     buf: string
     body*: string
     params*: StringTableRef
@@ -107,24 +105,16 @@ proc hash(str: string): Hash =
   result = !$h
 
 proc getMethod*(req: mofuwReq): string {.inline.} =
-  result = ($(req.line.method))[0 .. req.line.methodLen]
+  result = getMethod(req.mhr)
 
 proc getPath*(req: mofuwReq): string {.inline.} =
-  result = ($(req.line.path))[0 .. req.line.pathLen]
+  result = getPath(req.mhr)
 
 proc getCookie*(req: mofuwReq): string {.inline.} =
-  for i in 0 ..< req.line.headerLen:
-    if ($(req.header[i].name))[0 .. req.header[i].namelen] == "Cookie":
-      result = ($(req.header[i].value))[0 .. req.header[i].valuelen]
-      return
-  result = ""
+  result = getHeader(req.mhr, "Cookie")
 
 proc getHeader*(req: mofuwReq, name: string): string {.inline.} =
-  for i in 0 ..< req.line.headerLen:
-    if ($(req.header[i].name))[0 .. req.header[i].namelen] == name:
-      result = ($(req.header[i].value))[0 .. req.header[i].valuelen]
-      return
-  result = ""
+  result = getHeader(req.mhr, name)
 
 proc mofuwSend2*(res: mofuwRes, body: string) {.async.} =
   var
@@ -204,8 +194,6 @@ when defined(windows):
           buf.setLen(0)
           return
 
-        request.headerAddr = addr(request.header)
-
         if recv.len == bufferSize:
           while true:
             let recv = await recv(fd, bufferSize)
@@ -215,7 +203,7 @@ when defined(windows):
 
           buf.add(recv)
 
-        let r = mp_req(addr(buf[0]), request.line, request.headerAddr)
+        let r = mpParseRequest(addr(buf[0]), request.mhr)
 
         if r <= 0:
           await response.mofuwSend(notFound())
@@ -259,10 +247,8 @@ else:
           closeSocket(fd)
           request.buf.setLen(0)
         return true
-
-    request.headerAddr = addr(request.header)
   
-    let r = mp_req(addr(request.buf[0]), request.line, request.headerAddr)
+    let r = mpParseRequest(addr(request.buf[0]), request.mhr)
 
     if r <= 0:
       var fut = response.mofuwSend2(notFound())
