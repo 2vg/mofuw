@@ -193,5 +193,5 @@ Especially if there are people who can speed up and refactor it is the best!
 
 ## Special Thanks
 - [jester](https://github.com/dom96/jester) (using jester's pattern and utils, and study macro)
-
+- [kubo39](https://github.com/kubo39) (awesome... backlog proc, fix somaxconn, and more. super thx!)
 - Thanks a lot dom96, and all Nimmers !
