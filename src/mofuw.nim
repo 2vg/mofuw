@@ -183,7 +183,7 @@ when defined(windows):
       else:
         var
           buf = ""
-          request = mofuwReq(body: "")
+          request = mofuwReq(body: "", mhr: MPHTTPReq())
           response = mofuwRes(fd: fd)
 
         buf.add(recv)
