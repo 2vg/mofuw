@@ -25,3 +25,7 @@ else
   fi
 fi
 popd
+
+cd $PWD
+
+$PWD/nim/bin/nimble install -y
