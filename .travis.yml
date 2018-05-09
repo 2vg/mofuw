@@ -10,7 +10,7 @@ compiler:
   # Build and test using both gcc and clang
   - gcc
 matrix:
-  fast_finish: true
+  fast_finish: false 
 install:
   - |
     if [ ! -x nim-$BRANCH/bin/nim ]; then
