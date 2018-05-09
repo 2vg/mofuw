@@ -7,7 +7,7 @@ import
   strtabs,
   strutils,
   threadpool,
-  mofuhttptils,
+  mofuhttputils,
   asyncdispatch,
   nativesockets
 
