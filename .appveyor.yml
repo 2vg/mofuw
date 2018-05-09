@@ -24,6 +24,7 @@ install:
   - IF not exist "%NIM_ARCHIVE%" appveyor DownloadFile "%NIM_URL%" -FileName "%NIM_ARCHIVE%"
   - 7z x -y "%NIM_ARCHIVE%" -o"%CD%\tools_tmp"> nul
   - SET PATH=%CD%\tools_tmp\%NIM_DIR%\bin;%CD%\tools_tmp\%MINGW_DIR%\bin;%PATH%
+  - nimble.exe install -y
 
 build_script:
   - nim.exe c -f -o:"mofuw.out" src/mofuw
