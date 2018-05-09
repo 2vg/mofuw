@@ -7,7 +7,6 @@ import
   strtabs,
   strutils,
   threadpool,
-  mofuhttputils,
   asyncdispatch,
   nativesockets
 
@@ -23,6 +22,8 @@ when defined(linux):
 from os import osLastError
 
 import
+  mofuparser,
+  mofuhttputils,
   mofuw/jesterPatterns,
   mofuw/jesterUtils
 
