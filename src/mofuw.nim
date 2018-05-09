@@ -13,7 +13,7 @@ import
 when defined(windows):
   from winlean import TCP_NODELAY
 else:
-  from posix import TCP_NODELAY, EAGAIN
+  from posix import TCP_NODELAY
 
 when defined(linux):
   from posix import Pid
@@ -22,14 +22,12 @@ when defined(linux):
 from os import osLastError
 
 import
-  mofuw/httputils,
-  mofuw/mofuparser,
   mofuw/jesterPatterns,
   mofuw/jesterUtils
 
 export
   strtabs,
-  httputils,
+  mofuhttputils,
   asyncdispatch,
   jesterPatterns
 
@@ -37,8 +35,9 @@ type
   mofuwReq* = ref object
     mhr: MPHTTPReq
     buf: string
-    body*: string
+    bodyStart: int
     params*: StringTableRef
+    # this is for big request
     tmp*: cstring
 
   mofuwRes* = ref object
@@ -47,16 +46,17 @@ type
   Callback = proc(req: mofuwReq, res: mofuwRes): Future[void]
 
 const
-  kByte* = 1024
-  mByte* = 1024 * kByte
+  kByte = 1024
+  mByte = 1024 * kByte
 
   defaultBufferSize = 8 * kByte
-  maxBodySize = 1 * mByte
+  maxBodySize {.intdefine.} = 1 * mByte
+  bufSize {.intdefine.} = 512
 
 var
   cacheTables {.threadvar.}: TableRef[string, string]
   callback    {.threadvar.}: Callback
-  bufferSize  {.threadvar.}: int
+  bufferSize  {.threadvar, deprecated.}: int
 
 proc countCPUs(): int =
   when defined(linux):
@@ -116,28 +116,21 @@ proc getCookie*(req: mofuwReq): string {.inline.} =
 proc getHeader*(req: mofuwReq, name: string): string {.inline.} =
   result = getHeader(req.mhr, name)
 
-proc mofuwSend2*(res: mofuwRes, body: string) {.async.} =
-  var
-    buf: string
-
-  shallowcopy(buf, body)
-
-  when defined(windows):
-    await send(res.fd, addr(buf[0]), buf.len)
-  else:
-    discard res.fd.SocketHandle.send(addr(buf[0]), buf.len, 0)
+proc body*(req: mofuwReq): string {.inline.} =
+  result = $req.buf[req.bodyStart ..< ^1]
 
 proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
   var buf: string
-
   shallowcopy(buf, body)
 
+  # try send because raise exception.
   try:
     await send(res.fd, addr(buf[0]), buf.len)
   except:
     try:
       closeSocket(res.fd)
     except:
+      # TODO send error logging
       discard
 
 proc notFound*(res: mofuwRes) {.async.} =
@@ -145,7 +138,7 @@ proc notFound*(res: mofuwRes) {.async.} =
 
 proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
   if cacheTables.hasKey(path):
-    asyncCheck res.mofuwSend2(cacheTables[path])
+    asyncCheck res.mofuwSend(cacheTables[path])
     return
   else:
     let buf = makeResp(
@@ -154,7 +147,7 @@ proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
       body
     )
 
-    asyncCheck res.mofuwSend2(buf)
+    asyncCheck res.mofuwSend(buf)
 
     cacheTables[path] = buf
 
@@ -168,146 +161,79 @@ proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
 
     addTimer(1000, false, cacheCB)
 
-when defined(windows):
-  proc handler(fd: AsyncFD) {.async.} =
-    while true:
-      let recv = await recv(fd, bufferSize)
-
-      if recv == "":
-        try:
-          closeSocket(fd)
-        except:
-          discard
-        finally:
-          break
-      else:
-        var
-          buf = ""
-          request = mofuwReq(body: "", mhr: MPHTTPReq())
-          response = mofuwRes(fd: fd)
-
-        buf.add(recv)
-
-        if buf.len > maxBodySize:
-          await response.mofuwSend(bodyTooLarge())
-          closeSocket(fd)
-          buf.setLen(0)
-          return
-
-        if recv.len == bufferSize:
-          while true:
-            let recv = await recv(fd, bufferSize)
-
-            if recv == "":
-              break
-
-          buf.add(recv)
-
-        let r = mpParseRequest(addr(buf[0]), request.mhr)
-
-        if r <= 0:
-          await response.mofuwSend(notFound())
-          closeSocket(fd)
-          buf.setLen(0)
-          return
-
-        request.body = $(addr(buf[r]))
-
-        proc soon() =
-          asyncCheck callback(request, response)
-      
-        callSoon(soon)
-else:
-  proc handler(fd: AsyncFD): bool =
-    var
-      request = mofuwReq(buf: "", mhr: MPHTTPReq())
-      response = mofuwRes(fd: fd)
-
-    while true:
-      var buf = newStringOfCap(bufferSize)
-      let r = fd.SocketHandle.recv(addr(buf[0]), bufferSize, 0)
-  
-      if r == 0:
+proc handler(fd: AsyncFD) {.async.} =
+  var
+    r: int
+    buf: array[bufSize, char]
+  while true:
+    r = await recvInto(fd, addr buf[0], bufSize)
+    if r == 0:
+      try:
         closeSocket(fd)
-        request.buf.setLen(0)
-        return true
-      elif r < 0:
-        if osLastError().int in {EAGAIN}:
-          buf.setLen(0)
-          break
-        closeSocket(fd)
-        request.buf.setLen(0)
-        return true
+      except:
+        discard
+      finally:
+        return
+    else:
+      var
+        request = mofuwReq(buf: "", mhr: MPHTTPReq())
+        response = mofuwRes(fd: fd)
 
-      request.buf.add(addr(buf[0]))
+      request.buf.add($buf[0 ..< r])
 
       if request.buf.len > maxBodySize:
-        var fut = response.mofuwSend2(bodyTooLarge())
-        fut.callback = proc() =
-          closeSocket(fd)
-          request.buf.setLen(0)
-        return true
-  
-    let r = mpParseRequest(addr(request.buf[0]), request.mhr)
-
-    if r <= 0:
-      var fut = response.mofuwSend2(notFound())
-      fut.callback = proc() =
+        await response.mofuwSend(bodyTooLarge())
         closeSocket(fd)
-        request.buf.setLen(0)
-      return true
+        return
 
-    request.body = request.buf[r ..< request.buf.len]
+      if r == bufSize:
+        while true:
+          let recv = await recvInto(fd, addr buf[0], bufSize)
+          if recv == 0:
+            break
 
-    var fut = callback(request, response)
-    fut.callback = proc() =
-      request.buf.setLen(0)
-      request.body.setLen(0)
+          request.buf.add($buf[0 ..< r])
 
-    return false
+      let r = mpParseRequest(request.buf, request.mhr)
+
+      if r <= 0:
+        await response.mofuwSend(notFound())
+        closeSocket(fd)
+        return
+
+      request.bodyStart = r
+
+      asyncCheck callback(request, response)
 
 proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
   return false
 
 proc mofuwInit(port: int, backlog: int, bufSize: int, tables: TableRef[string, string]) {.async.} =
-
   let server = newServerSocket(port, backlog).AsyncFD
-
   bufferSize = bufSize
-
   cacheTables = tables
-
   register(server)
-
   updateServerTime()
-
   addTimer(1000, false, updateTime)
-
   while true:
     var
       fut = accept(server)
       client: AsyncFD
-    
     yield fut
-
+    # failed accept, try accept after 0.01ms
     if fut.failed:
       await sleepAsync(10)
       continue
-
     client = fut.read()
-
     client.SocketHandle.setBlocking(false)
 
-    when defined(windows):
-      asyncCheck handler(client)
-    else:
-      addRead(client, handler)
+    asyncCheck handler(client)
 
-proc run(port: int, backlog: int, bufSize: int, cb: Callback,
+proc run(port: int, backlog: int, bufSize: int = bufSize, cb: Callback,
          tables: TableRef[string, string]) {.thread.} =
-  callback = cb
 
+  callback = cb
   waitFor mofuwInit(port, backlog, bufSize, tables)
 
 proc defaultBacklog(): int =
@@ -338,13 +264,16 @@ proc mofuwRun*(cb: Callback,
 
   cacheTables = newTable[string, string]()
 
+  setMinPoolSize(countCPUs())
+  setMaxPoolSize(countCPUs())
+
   for i in 0 ..< countCPUs():
     spawn run(port, backlog, bufSize, cb, cacheTables)
 
   sync()
 
 template mofuwResp*(status, mime, body: string): typed =
-  asyncCheck res.mofuwSend2(makeResp(
+  asyncCheck res.mofuwSend(makeResp(
     status,
     mime,
     body
