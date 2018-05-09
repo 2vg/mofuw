@@ -175,18 +175,20 @@ proc handler(fd: AsyncFD) {.async.} =
       except:
         discard
       finally:
-        return
+        break 
     else:
       var
         request = mofuwReq(buf: "", mhr: MPHTTPReq())
         response = mofuwRes(fd: fd)
 
-      request.buf.add($buf[0 ..< r])
+      let ol = request.buf.len
+      request.buf.setLen(ol+r)
+      for i in 0 ..< r: request.buf[ol+i] = buf[i]
 
       if request.buf.len > maxBodySize:
         await response.mofuwSend(bodyTooLarge())
         closeSocket(fd)
-        return
+        break
 
       if r == bufSize:
         while true:
@@ -194,14 +196,16 @@ proc handler(fd: AsyncFD) {.async.} =
           if recv == 0:
             break
 
-          request.buf.add($buf[0 ..< r])
+          let ol = request.buf.len
+          request.buf.setLen(ol+r)
+          for i in 0 ..< r: request.buf[ol+i] = buf[i]
 
       let r = mpParseRequest(request.buf, request.mhr)
 
       if r <= 0:
         await response.mofuwSend(notFound())
         closeSocket(fd)
-        return
+        break
 
       request.bodyStart = r
 
@@ -265,9 +269,6 @@ proc mofuwRun*(cb: Callback,
     raise newException(Exception, "callback is nil.")
 
   cacheTables = newTable[string, string]()
-
-  setMinPoolSize(countCPUs())
-  setMaxPoolSize(countCPUs())
 
   for i in 0 ..< countCPUs():
     spawn run(port, backlog, bufSize, cb, cacheTables)
