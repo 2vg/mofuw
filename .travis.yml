@@ -1,5 +1,7 @@
 # Copied from https://github.com/nim-lang/Nim/wiki/TravisCI
-os: osx
+os:
+  - linux
+  - osx
 language: c
 env:
   # Build and test against the master and devel branches of Nim
@@ -21,12 +23,14 @@ install:
       rm -rf csources
       bin/nim c koch
       ./koch boot -d:release
+      ./koch tools
     else
       cd nim-$BRANCH
       git fetch origin
       if ! git merge FETCH_HEAD | grep "Already up-to-date"; then
         bin/nim c koch
         ./koch boot -d:release
+        ./koch tools
       fi
     fi
     cd ..
