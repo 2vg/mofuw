@@ -10,6 +10,8 @@ import
   asyncdispatch,
   nativesockets
 
+from httpcore import HttpHeaders
+
 when defined(windows):
   from winlean import TCP_NODELAY
 else:
@@ -117,6 +119,9 @@ proc getCookie*(req: mofuwReq): string {.inline.} =
 
 proc getHeader*(req: mofuwReq, name: string): string {.inline.} =
   result = getHeader(req.mhr, name)
+
+proc toHttpHeaders*(req: mofuwReq): HttpHeaders {.inline.} =
+  result = req.mhr.toHttpHeaders()
 
 proc body*(req: mofuwReq): string {.inline.} =
   result = $req.buf[req.bodyStart ..< ^1]
