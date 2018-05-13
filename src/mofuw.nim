@@ -212,6 +212,7 @@ proc handler(fd: AsyncFD) {.async.} =
         closeSocket(fd)
         break
 
+      echo r
       request.bodyStart = r
 
       let fut = callback(request, response)
