@@ -13,9 +13,12 @@ import
 from httpcore import HttpHeaders
 
 when defined(windows):
-  from winlean import TCP_NODELAY
+  from winlean import TCP_NODELAY, WSAEWOULDBLOCK
+  const
+    EAGAIN = WSAEWOULDBLOCK
+    EWOULDBLOCK = WSAEWOULDBLOCK
 else:
-  from posix import TCP_NODELAY
+  from posix import TCP_NODELAY, EAGAIN, EWOULDBLOCK
 
 when defined(linux):
   from posix import Pid
@@ -197,6 +200,7 @@ proc handler(fd: AsyncFD) {.async.} =
 
       if r == bufSize:
         while true:
+          if osLastError().int in {EAGAIN, EWOULDBLOCK}: break
           let r = await recvInto(fd, addr buf[0], bufSize)
           if r == 0:
             break
