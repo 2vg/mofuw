@@ -38,7 +38,7 @@ export
 type
   mofuwReq* = ref object
     mhr: MPHTTPReq
-    buf: string
+    buf*: string
     bodyStart: int
     params*: StringTableRef
     # this is for big request
@@ -214,7 +214,12 @@ proc handler(fd: AsyncFD) {.async.} =
 
       request.bodyStart = r
 
-      asyncCheck callback(request, response)
+      let fut = callback(request, response)
+      fut.callback = proc() =
+        request.buf.setLen(0)
+      yield fut
+      if fut.failed:
+        discard
 
 proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
