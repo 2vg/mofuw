@@ -200,6 +200,7 @@ proc handler(fd: AsyncFD) {.async.} =
           closeSocket(fd)
           break handler
 
+        # TODO: when Windows, inf loop
         if r == bufSize:
           while true:
             let r = fd.SocketHandle.recv(addr buf[0], bufSize, 0)
