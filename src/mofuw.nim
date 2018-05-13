@@ -175,55 +175,64 @@ proc handler(fd: AsyncFD) {.async.} =
   var
     r: int
     buf: array[bufSize, char]
-  while true:
-    r = await recvInto(fd, addr buf[0], bufSize)
-    if r == 0:
-      try:
-        closeSocket(fd)
-      except:
-        discard
-      finally:
-        break 
-    else:
-      var
-        request = mofuwReq(buf: "", mhr: MPHTTPReq())
-        response = mofuwRes(fd: fd)
 
-      let ol = request.buf.len
-      request.buf.setLen(ol+r)
-      for i in 0 ..< r: request.buf[ol+i] = buf[i]
+  block handler:
+    while true:
+      r = await recvInto(fd, addr buf[0], bufSize)
+      if r == 0:
+        try:
+          closeSocket(fd)
+        except:
+          discard
+        finally:
+          break 
+      else:
+        var
+          request = mofuwReq(buf: "", mhr: MPHTTPReq())
+          response = mofuwRes(fd: fd)
 
-      if request.buf.len > maxBodySize:
-        await response.mofuwSend(bodyTooLarge())
-        closeSocket(fd)
-        break
+        let ol = request.buf.len
+        request.buf.setLen(ol+r)
+        for i in 0 ..< r: request.buf[ol+i] = buf[i]
 
-      if r == bufSize:
-        while true:
-          if osLastError().int in {EAGAIN, EWOULDBLOCK}: break
-          let r = await recvInto(fd, addr buf[0], bufSize)
-          if r == 0:
-            break
+        if request.buf.len > maxBodySize:
+          await response.mofuwSend(bodyTooLarge())
+          closeSocket(fd)
+          break handler
 
-          let ol = request.buf.len
-          request.buf.setLen(ol+r)
-          for i in 0 ..< r: request.buf[ol+i] = buf[i]
+        if r == bufSize:
+          while true:
+            let r = fd.SocketHandle.recv(addr buf[0], bufSize, 0)
+            case r
+            of 0:
+              await response.mofuwSend(bodyTooLarge())
+              closeSocket(fd)
+              break handler
+            of -1:
+              if osLastError().int in {EAGAIN, EWOULDBLOCK}: break
+              await response.mofuwSend(bodyTooLarge())
+              closeSocket(fd)
+              break handler
+            else:
+              let ol = request.buf.len
+              request.buf.setLen(ol+r)
+              for i in 0 ..< r: request.buf[ol+i] = buf[i]
 
-      let r = mpParseRequest(addr request.buf[0], request.mhr)
+        let r = mpParseRequest(addr request.buf[0], request.mhr)
 
-      if r <= 0:
-        await response.mofuwSend(notFound())
-        closeSocket(fd)
-        break
+        if r <= 0:
+          await response.mofuwSend(notFound())
+          closeSocket(fd)
+          break handler
 
-      request.bodyStart = r
+        request.bodyStart = r
 
-      let fut = callback(request, response)
-      fut.callback = proc() =
-        request.buf.setLen(0)
-      yield fut
-      if fut.failed:
-        discard
+        let fut = callback(request, response)
+        fut.callback = proc() =
+          request.buf.setLen(0)
+        yield fut
+        if fut.failed:
+          discard
 
 proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
