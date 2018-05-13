@@ -205,14 +205,13 @@ proc handler(fd: AsyncFD) {.async.} =
           request.buf.setLen(ol+r)
           for i in 0 ..< r: request.buf[ol+i] = buf[i]
 
-      let r = mpParseRequest(request.buf, request.mhr)
+      let r = mpParseRequest(addr request.buf[0], request.mhr)
 
       if r <= 0:
         await response.mofuwSend(notFound())
         closeSocket(fd)
         break
 
-      echo r
       request.bodyStart = r
 
       let fut = callback(request, response)
