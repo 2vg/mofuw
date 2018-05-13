@@ -197,8 +197,8 @@ proc handler(fd: AsyncFD) {.async.} =
 
       if r == bufSize:
         while true:
-          let recv = await recvInto(fd, addr buf[0], bufSize)
-          if recv == 0:
+          let r = await recvInto(fd, addr buf[0], bufSize)
+          if r == 0:
             break
 
           let ol = request.buf.len
