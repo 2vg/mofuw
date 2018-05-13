@@ -124,7 +124,7 @@ proc toHttpHeaders*(req: mofuwReq): HttpHeaders {.inline.} =
   result = req.mhr.toHttpHeaders()
 
 proc body*(req: mofuwReq): string {.inline.} =
-  result = $req.buf[req.bodyStart ..< ^1]
+  result = $req.buf[req.bodyStart .. ^1]
 
 proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
   var buf: string
