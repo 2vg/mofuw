@@ -132,6 +132,7 @@ proc body*(req: mofuwReq): string {.inline.} =
 proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
   var buf: string
   shallowcopy(buf, body)
+  GC_ref(buf)
 
   # try send because raise exception.
   try:
@@ -231,8 +232,10 @@ proc handler(fd: AsyncFD) {.async.} =
         let fut = callback(request, response)
         fut.callback = proc() =
           request.buf.setLen(0)
+          GC_unref(request.buf)
         yield fut
         if fut.failed:
+          # TODO error logging ?
           discard
 
 proc updateTime(fd: AsyncFD): bool =
