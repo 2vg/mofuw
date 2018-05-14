@@ -9,6 +9,13 @@
 
 > ~~mofuw is **M**eccha hayai Asynchronous I/**O** no super **F**ast de **U**ltra minimal na **W**eb server on Nim.~~
 
+## ⚠
+In Windows, if the request size is the same as the buffer size, it becomes a reading ∞ loop.
+
+The current workaround is to increase the buffer size at compile time like `-d: bufSize: 65535`.
+
+I'll fix soon, sorry.
+
 ## Wanted!!
 
 looking for people who develop together for the development of mofuw!
