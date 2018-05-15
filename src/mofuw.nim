@@ -236,7 +236,13 @@ proc handler(fd: AsyncFD) {.async.} =
         yield fut
         if fut.failed:
           # TODO error logging ?
-          discard
+          let resp = makeResp(
+            HTTP500,
+            "text/plain",
+            "sorry, Server Error.")
+          await response.mofuwSend(bodyTooLarge())
+          closeSocket(fd)
+          break handler
 
 proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
