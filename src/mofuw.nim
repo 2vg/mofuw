@@ -13,10 +13,8 @@ import
 from httpcore import HttpHeaders
 
 when defined(windows):
-  from winlean import TCP_NODELAY, WSAEWOULDBLOCK
-  const
-    EAGAIN = WSAEWOULDBLOCK
-    EWOULDBLOCK = WSAEWOULDBLOCK
+  import asyncnet
+  from winlean import TCP_NODELAY
 else:
   from posix import TCP_NODELAY, EAGAIN, EWOULDBLOCK
 
@@ -135,9 +133,9 @@ proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
   GC_ref(buf)
 
   # try send because raise exception.
-  try:
-    await send(res.fd, addr(buf[0]), buf.len)
-  except:
+  let fut = send(res.fd, addr(buf[0]), buf.len)
+  yield fut
+  if fut.failed:
     try:
       closeSocket(res.fd)
     except:
@@ -174,90 +172,112 @@ proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
 
 proc handler(fd: AsyncFD) {.async.} =
   var
-    r: int
-    buf: array[bufSize, char]
+    request = mofuwReq(buf: "", mhr: MPHTTPReq())
+    response = mofuwRes(fd: fd)
+
+  # because not using buffer arrays on Windows, using recvLine.
+  when not defined(windows):
+    var
+      r: int
+      buf: array[bufSize, char]
 
   block handler:
     while true:
-      r = await recvInto(fd, addr buf[0], bufSize)
-      if r == 0:
-        try:
-          closeSocket(fd)
-        except:
-          discard
-        finally:
-          break 
-      else:
-        var
-          request = mofuwReq(buf: "", mhr: MPHTTPReq())
-          response = mofuwRes(fd: fd)
-
-        let ol = request.buf.len
-        request.buf.setLen(ol+r)
-        for i in 0 ..< r: request.buf[ol+i] = buf[i]
-
-        if request.buf.len > maxBodySize:
-          await response.mofuwSend(bodyTooLarge())
-          closeSocket(fd)
-          break handler
-
-        # TODO: when Windows, inf loop
-        if r == bufSize:
-          when defined(windows):
-            while true:
-              r = await recvInto(fd, addr buf[0], bufSize)
-              if r == 0:
-                try:
-                  closeSocket(fd)
-                except:
-                  discard
-                finally:
-                  break
-              else:
-                let ol = request.buf.len
-                request.buf.setLen(ol+r)
-                for i in 0 ..< r: request.buf[ol+i] = buf[i]
+      when defined(windows):
+        # on Windows, need linecheck.
+        # because Windows is shitty.
+        let recv = await recvLine(fd)
+        if recv == "":
+          try:
+            closeSocket(fd)
+          except:
+            discard
+          finally:
+            break
+        else:
+          # if request is big, return bodyTooLarge
+          if recv.len > bufSize:
+            await response.mofuwSend(bodyTooLarge())
+            closeSocket(fd)
+            break handler
+          request.buf.add(recv)
+          if recv == "\c\L":
+            let cl = request.getHeader("Content-Length")
+            # if have Content-Length, try recv body.
+            # TODO recv body timeout
+            if not(cl == ""):
+              let r = await recv(fd, cl.parseInt)
+              request.buf.add(r)
           else:
-            while true:
-              r = fd.SocketHandle.recv(addr buf[0], bufSize, 0)
-              case r
-              of 0:
+            request.buf.add("\c\L")
+            continue
+      else:
+        # using our buffer
+        r = await recvInto(fd, addr buf[0], bufSize)
+        if r == 0:
+          try:
+            closeSocket(fd)
+          except:
+            discard
+          finally:
+            break 
+        else:
+          let ol = reqest.buf.len
+          request.buf.setLen(ol+r)
+          for i in 0 ..< r: request.buf[ol+i] = buf[i]
+
+          if request.buf.len > maxBodySize:
+            await response.mofuwSend(bodyTooLarge())
+            closeSocket(fd)
+            break handler
+
+        if r == bufSize:
+          while true:
+            r = fd.SocketHandle.recv(addr buf[0], bufSize, 0)
+            case r
+            of 0:
+              await response.mofuwSend(bodyTooLarge())
+              closeSocket(fd)
+              break handler
+            of -1:
+              if osLastError().int in {EAGAIN, EWOULDBLOCK}: break
+              await response.mofuwSend(bodyTooLarge())
+              closeSocket(fd)
+              break handler
+            else:
+              let ol = request.buf.len
+              if ol+r > maxBodySize:
                 await response.mofuwSend(bodyTooLarge())
                 closeSocket(fd)
                 break handler
-              of -1:
-                if osLastError().int in {EAGAIN, EWOULDBLOCK}: break
-                await response.mofuwSend(bodyTooLarge())
-                closeSocket(fd)
-                break handler
-              else:
-                let ol = request.buf.len
-                request.buf.setLen(ol+r)
-                for i in 0 ..< r: request.buf[ol+i] = buf[i]
+              request.buf.setLen(ol+r)
+              for i in 0 ..< r: request.buf[ol+i] = buf[i]
 
-        let r = mpParseRequest(addr request.buf[0], request.mhr)
+      echo repr request.buf
 
-        if r <= 0:
-          await response.mofuwSend(notFound())
-          closeSocket(fd)
-          break handler
+      let r = mpParseRequest(addr request.buf[0], request.mhr)
 
-        request.bodyStart = r
+      if r <= 0:
+        await response.mofuwSend(notFound())
+        closeSocket(fd)
+        break handler
 
-        let fut = callback(request, response)
-        fut.callback = proc() =
-          request.buf.setLen(0)
-          GC_unref(request.buf)
-        yield fut
-        if fut.failed:
-          # TODO error logging ?
-          let resp = makeResp(
-            HTTP500,
-            "text/plain",
-            "sorry, Server Error.")
-          await response.mofuwSend(resp)
-          closeSocket(fd)
-          break handler
+      request.bodyStart = r
+
+      let fut = callback(request, response)
+      fut.callback = proc() =
+        request.buf.setLen(0)
+        GC_unref(request.buf)
+      yield fut
+      if fut.failed:
+        # TODO error logging ?
+        let resp = makeResp(
+          HTTP500,
+          "text/plain",
+          "sorry, Server Error.")
+        await response.mofuwSend(resp)
+        closeSocket(fd)
+        break handler
 
 proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
