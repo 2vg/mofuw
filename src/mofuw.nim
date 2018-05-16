@@ -240,6 +240,7 @@ proc handler(fd: AsyncFD) {.async.} =
           let fut = callback(request, response)
           fut.callback = proc() =
             request.buf.setLen(0)
+            GC_unref(request.buf)
           yield fut
           if fut.failed:
             discard
@@ -302,6 +303,7 @@ proc handler(fd: AsyncFD) {.async.} =
           let fut = callback(request, response)
           fut.callback = proc() =
             request.buf.setLen(0)
+            GC_unref(request.buf)
           yield fut
           if fut.failed:
             discard
