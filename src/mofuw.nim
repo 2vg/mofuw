@@ -132,6 +132,8 @@ proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
   shallowcopy(buf, body)
 
   # try send because raise exception.
+  # buffer not protect, but
+  # mofuwReq have buffer, so this is safe.(?)
   let fut = send(res.fd, addr(buf[0]), buf.len)
   yield fut
   if fut.failed:
@@ -179,6 +181,7 @@ proc handler(fd: AsyncFD) {.async.} =
       while true:
         # on Windows, need linecheck.
         # because Windows is shitty.
+        # TODO recvLine is deprecated.
         let recv = await recvLine(fd)
         if recv == "":
           try:
@@ -202,6 +205,8 @@ proc handler(fd: AsyncFD) {.async.} =
               let r = await recv(fd, cl.parseInt)
               request.buf.add(r)
           else:
+            # add \c\L
+            # because not added \c\L request.buf.add(recv)
             request.buf.add("\c\L")
             continue
 
@@ -225,6 +230,7 @@ proc handler(fd: AsyncFD) {.async.} =
 
     block handler:
       while true:
+        # using our buffer
         r = await recvInto(fd, addr buf[0], bufSize)
         if r == 0:
           try:
