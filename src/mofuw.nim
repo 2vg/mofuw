@@ -127,15 +127,12 @@ proc toHttpHeaders*(req: mofuwReq): HttpHeaders {.inline.} =
 proc body*(req: mofuwReq): string {.inline.} =
   result = $req.buf[req.bodyStart .. ^1]
 
-proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
+proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
   var buf: string
   shallowcopy(buf, body)
-  GC_ref(buf)
 
   # try send because raise exception.
   let fut = send(res.fd, addr(buf[0]), buf.len)
-  fut.callback = proc() =
-    GC_unref(buf)
   yield fut
   if fut.failed:
     try:
@@ -218,8 +215,6 @@ proc handler(fd: AsyncFD) {.async.} =
           request.bodyStart = r
           
           let fut = callback(request, response)
-          fut.callback = proc() =
-            request.buf.setLen(0)
           yield fut
           if fut.failed:
             discard
@@ -280,8 +275,6 @@ proc handler(fd: AsyncFD) {.async.} =
           request.bodyStart = r
         
           let fut = callback(request, response)
-          fut.callback = proc() =
-            request.buf.setLen(0)
           yield fut
           if fut.failed:
             discard
