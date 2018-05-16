@@ -134,6 +134,8 @@ proc mofuwSend*(res: mofuwRes, body: string) {.async.}=
 
   # try send because raise exception.
   let fut = send(res.fd, addr(buf[0]), buf.len)
+  fut.callback = proc() =
+    GC_unref(buf)
   yield fut
   if fut.failed:
     try:
@@ -169,28 +171,6 @@ proc cacheResp*(res: mofuwRes, path, status, mime, body: string) {.async.} =
       result = false
 
     addTimer(1000, false, cacheCB)
-
-proc parseAndCallback(req: mofuwReq, res: mofuwRes) {.async.} =
-  let r = mpParseRequest(addr req.buf[0], req.mhr)
-  if r <= 0:
-    await res.mofuwSend(notFound())
-    closeSocket(res.fd)
-
-  req.bodyStart = r
-
-  let fut = callback(req, res)
-  fut.callback = proc() =
-    req.buf.setLen(0)
-    GC_unref(req.buf)
-  yield fut
-  if fut.failed:
-    # TODO error logging ?
-    let resp = makeResp(
-      HTTP500,
-      "text/plain",
-      "sorry, Server Error.")
-    await res.mofuwSend(resp)
-    closeSocket(res.fd)
 
 proc handler(fd: AsyncFD) {.async.} =
   when defined(windows):
@@ -240,7 +220,6 @@ proc handler(fd: AsyncFD) {.async.} =
           let fut = callback(request, response)
           fut.callback = proc() =
             request.buf.setLen(0)
-            GC_unref(request.buf)
           yield fut
           if fut.failed:
             discard
@@ -303,7 +282,6 @@ proc handler(fd: AsyncFD) {.async.} =
           let fut = callback(request, response)
           fut.callback = proc() =
             request.buf.setLen(0)
-            GC_unref(request.buf)
           yield fut
           if fut.failed:
             discard
