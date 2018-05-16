@@ -222,7 +222,7 @@ proc handler(fd: AsyncFD) {.async.} =
           finally:
             break 
         else:
-          let ol = reqest.buf.len
+          let ol = request.buf.len
           request.buf.setLen(ol+r)
           for i in 0 ..< r: request.buf[ol+i] = buf[i]
 
@@ -252,7 +252,7 @@ proc handler(fd: AsyncFD) {.async.} =
                 break handler
               request.buf.setLen(ol+r)
               for i in 0 ..< r: request.buf[ol+i] = buf[i]
-              
+
       let r = mpParseRequest(addr request.buf[0], request.mhr)
 
       if r <= 0:
