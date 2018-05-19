@@ -198,14 +198,7 @@ proc handler(fd: AsyncFD) {.async.} =
             closeSocket(fd)
             break handler
           request.buf.add(recv)
-          if recv == "\c\L":
-            let cl = request.getHeader("Content-Length")
-            # if have Content-Length, try recv body.
-            # TODO recv body timeout
-            if not(cl == ""):
-              let r = await recv(fd, cl.parseInt)
-              request.buf.add(r)
-          else:
+          if not(recv == "\c\L"):
             # add \c\L
             # because not added \c\L request.buf.add(recv)
             request.buf.add("\c\L")
@@ -218,6 +211,17 @@ proc handler(fd: AsyncFD) {.async.} =
             closeSocket(fd)
             break handler
           
+          let cl = request.getHeader("Content-Length")
+          # if have Content-Length, try recv body.
+          # TODO recv body timeout
+          if not(cl == ""):
+            if cl.parseInt > maxBodySize:
+              await response.mofuwSend(bodyTooLarge())
+              closeSocket(fd)
+              break handler
+            let r = await recv(fd, cl.parseInt)
+            request.buf.add(r)
+
           request.bodyStart = r
           
           try:
