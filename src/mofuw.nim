@@ -223,6 +223,7 @@ proc handler(fd: AsyncFD) {.async.} =
           try:
             await callback(request, response)
           except:
+            # TODO error check.
             discard
   else:
     var
@@ -284,6 +285,7 @@ proc handler(fd: AsyncFD) {.async.} =
           try:
             await callback(request, response)
           except:
+            # erro check.
             discard
 
 proc updateTime(fd: AsyncFD): bool =
@@ -301,6 +303,7 @@ proc mofuwInit(port: int, backlog: int, bufSize: int, tables: TableRef[string, s
     try:
       let client = await accept(server)
       client.SocketHandle.setBlocking(false)
+      # handler error check.
       asyncCheck handler(client)
     except:
       # TODO async sleep.
