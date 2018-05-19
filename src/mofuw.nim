@@ -220,9 +220,9 @@ proc handler(fd: AsyncFD) {.async.} =
           
           request.bodyStart = r
           
-          let fut = callback(request, response)
-          yield fut
-          if fut.failed:
+          try:
+            await callback(request, response)
+          except:
             discard
   else:
     var
@@ -281,9 +281,9 @@ proc handler(fd: AsyncFD) {.async.} =
         
           request.bodyStart = r
         
-          let fut = callback(request, response)
-          yield fut
-          if fut.failed:
+          try:
+            await callback(request, response)
+          except:
             discard
 
 proc updateTime(fd: AsyncFD): bool =
