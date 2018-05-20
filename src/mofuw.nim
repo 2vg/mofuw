@@ -129,7 +129,7 @@ proc bodyParse*(req: mofuwReq): StringTableRef =
   req.bodyParse
 
 proc body*(req: mofuwReq, key: string = nil): string =
-  if key.isNil: return req.buf
+  if key.isNil: return $req.buf[req.bodyStart .. ^1]
   if req.bParams.isNil: req.bParams = req.body.bodyParse
   req.bParams.getOrDefault(key)
 
