@@ -40,7 +40,7 @@ type
   mofuwReq* = ref object
     mhr: MPHTTPReq
     buf*: string
-    bodyStart: int
+    bodyStart, recieved: int
     bParams, params*: StringTableRef
     # this is for big request
     # TODO
@@ -130,7 +130,7 @@ proc bodyParse*(req: mofuwReq): StringTableRef =
   req.bodyParse
 
 proc body*(req: mofuwReq, key: string = nil): string =
-  if key.isNil: return $req.buf[req.bodyStart .. ^1]
+  if key.isNil: return $req.buf[req.bodyStart ..< req.recieved]
   if req.bParams.isNil: req.bParams = req.body.bodyParse
   req.bParams.getOrDefault(key)
 
@@ -198,6 +198,7 @@ proc handler(fd: AsyncFD) {.async.} =
           finally:
             break
         else:
+          request.recieved += recv.len
           # if request is big, return bodyTooLarge
           if recv.len > bufSize:
             await response.mofuwSend(bodyTooLarge())
@@ -266,6 +267,7 @@ proc handler(fd: AsyncFD) {.async.} =
             break handler
 
           if r == bufSize:
+            request.recieved += bufSize
             while true:
               let r = fd.SocketHandle.recv(addr buf[0], bufSize, 0)
               case r
@@ -279,6 +281,7 @@ proc handler(fd: AsyncFD) {.async.} =
                 closeSocket(fd)
                 break handler
               else:
+                request.recieved += r
                 let ol = request.buf.len
                 request.buf.setLen(ol+r)
                 for i in 0 ..< r: request.buf[ol+i] = buf[i]
