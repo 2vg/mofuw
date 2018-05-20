@@ -56,12 +56,13 @@ const
   mByte = 1024 * kByte
 
   defaultBufferSize = 8 * kByte
-  maxBodySize {.intdefine.} = 1 * mByte
+  defaultMaxBodySize {.intdefine.} = 1 * mByte
   bufSize {.intdefine.} = 512
 
 var
   cacheTables {.threadvar.}: TableRef[string, string]
   callback    {.threadvar.}: Callback
+  maxBodySize {.threadvar.}: int
   bufferSize  {.threadvar, deprecated.}: int
 
 proc countCPUs(): int =
@@ -301,9 +302,10 @@ proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
   return false
 
-proc mofuwInit(port: int, backlog: int, bufSize: int, tables: TableRef[string, string]) {.async.} =
+proc mofuwInit(port, backlog, bufSize, mBodySize: int;
+               tables: TableRef[string, string]) {.async.} =
   let server = newServerSocket(port, backlog).AsyncFD
-  bufferSize = bufSize
+  maxBodySize = mBodySize
   cacheTables = tables
   register(server)
   updateServerTime()
@@ -319,11 +321,11 @@ proc mofuwInit(port: int, backlog: int, bufSize: int, tables: TableRef[string, s
       # await sleepAsync(10)
       continue
 
-proc run(port: int, backlog: int, bufSize: int = bufSize, cb: Callback,
-         tables: TableRef[string, string]) {.thread.} =
+proc run(port, backlog, bufSize, maxBodySize: int;
+         cb: Callback, tables: TableRef[string, string]) {.thread.} =
 
   callback = cb
-  waitFor mofuwInit(port, backlog, bufSize, tables)
+  waitFor mofuwInit(port, backlog, bufSize, maxBodySize, tables)
 
 proc defaultBacklog(): int =
   when defined(linux):
@@ -346,7 +348,8 @@ proc defaultBacklog(): int =
 proc mofuwRun*(cb: Callback,
                port: int = 8080,
                backlog: int = defaultBacklog(),
-               bufSize: int = defaultBufferSize) =
+               bufSize: int = defaultBufferSize,
+               maxBodySize: int = defaultMaxBodySize) =
 
   if cb == nil:
     raise newException(Exception, "callback is nil.")
@@ -354,7 +357,7 @@ proc mofuwRun*(cb: Callback,
   cacheTables = newTable[string, string]()
 
   for i in 0 ..< countCPUs():
-    spawn run(port, backlog, bufSize, cb, cacheTables)
+    spawn run(port, backlog, bufSize, maxBodySize, cb, cacheTables)
 
   sync()
 
