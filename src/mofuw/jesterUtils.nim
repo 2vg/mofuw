@@ -1,5 +1,6 @@
 # Copyright (C) 2012 Dominik Picheta
 # MIT License - Look at license.txt for details.
+# modified by 2vg
 import parseutils, strtabs, strutils, tables
 from cgi import decodeUrl
 
@@ -89,6 +90,21 @@ proc parseMPFD*(contentType: string, body: string): MultiData =
   var boundaryEqIndex = contentType.find("boundary=")+9
   var boundary = contentType.substr(boundaryEqIndex, contentType.len()-1)
   return parseMultiPart(body, boundary)
+
+proc bodyParse*(query: string):StringTableRef {.inline.} =
+  result = {:}.newStringTable
+  var i = 0
+  while i < query.len()-1:
+    var key = ""
+    var val = ""
+    i += query.parseUntil(key, '=', i)
+    if query[i] != '=':
+      raise newException(ValueError, "Expected '=' at " & $i &
+                         " but got: " & $query[i])
+    inc(i) # Skip =
+    i += query.parseUntil(val, '&', i)
+    inc(i) # Skip &
+    result[key] = val
 
 when not declared(tables.getOrDefault):
   template getOrDefault*(tab, key): untyped = tab[key]
