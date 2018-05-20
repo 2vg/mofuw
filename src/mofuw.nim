@@ -41,7 +41,7 @@ type
     mhr: MPHTTPReq
     buf*: string
     bodyStart: int
-    params*: StringTableRef
+    bParams, params*: StringTableRef
     # this is for big request
     # TODO
     tmp*: cstring
@@ -125,8 +125,13 @@ proc getHeader*(req: mofuwReq, name: string): string {.inline.} =
 proc toHttpHeaders*(req: mofuwReq): HttpHeaders {.inline.} =
   result = req.mhr.toHttpHeaders()
 
-proc body*(req: mofuwReq): string {.inline.} =
-  result = $req.buf[req.bodyStart .. ^1]
+proc bodyParse*(req: mofuwReq): StringTableRef =
+  req.bodyParse
+
+proc body*(req: mofuwReq, key: string = nil): string =
+  if key.isNil: return req.buf
+  if req.bParams.isNil: req.bParams = req.body.bodyParse
+  req.bParams.getOrDefault(key)
 
 proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
   var buf: string
