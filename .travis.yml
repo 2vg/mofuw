@@ -37,7 +37,8 @@ install:
 before_script:
     - export PATH="nim-$BRANCH/bin${PATH:+:$PATH}"
 script:
-    - nimble install -y
+    - chmod +x altlib.sh
+    - ./altlib.sh
     # Replace uppercase strings!
     - nim c --cc:$CC --verbosity:0 -f -o:"mofuw.out" src/mofuw
     # Optional: build docs.

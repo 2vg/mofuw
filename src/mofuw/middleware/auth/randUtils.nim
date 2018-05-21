@@ -1,8 +1,8 @@
-import sysrandom, random, sequtils
+import random, sequtils
 
 randomize()
 
-const allC = {'0'..'9', 'a'..'z', 'A'..'Z', '$'}
+const allC = {'0'..'9', 'a'..'z', 'A'..'Z', '#', '$', '%', '.'}
 
 var charArr: seq[char] = @[]
 
@@ -14,7 +14,7 @@ proc randString*(len: int): string =
 
   for i in 1 .. len:
     shuffle(charArr)
-    result.add($charArr[(getRandom(10000 mod 63)).int])
+    result.add($charArr[(rand(10000).int mod 66).int])
 
 when isMainModule:
   echo randString(32)

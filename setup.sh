@@ -26,6 +26,5 @@ else
 fi
 popd
 
-cd $PWD
-
-$PWD/nim/bin/nimble install -y
+chmod +x altlib.sh
+./altlib.sh

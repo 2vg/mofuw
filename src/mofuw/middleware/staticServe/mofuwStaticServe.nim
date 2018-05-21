@@ -13,7 +13,7 @@ proc fileResp(res: mofuwRes, filePath, file: string) {.async.}=
   let (_, _, ext) = splitFile(filePath)
 
   if ext == "":
-    await res.mofuwSend2(makeResp(
+    await res.mofuwSend(makeResp(
       HTTP200,
       "text/plain",
       file
@@ -21,7 +21,7 @@ proc fileResp(res: mofuwRes, filePath, file: string) {.async.}=
   else:
     let mime = newMimetypes()
 
-    await res.mofuwSend2(makeResp(
+    await res.mofuwSend(makeResp(
       HTTP200,
       mime.getMimetype(ext[1 .. ^1], default = "application/octet-stream"),
       file
@@ -36,7 +36,7 @@ proc staticServe*(req: mofuwReq, res: mofuwRes, rootPath: string): Future[bool] 
   for k, v in reqPath:
     if v == '.':
       if reqPath[k+1] == '.':
-        await res.mofuwSend2(badRequest())
+        await res.mofuwSend(badRequest())
         return true
 
   if filePath[^1] != '/':
@@ -53,7 +53,7 @@ proc staticServe*(req: mofuwReq, res: mofuwRes, rootPath: string): Future[bool] 
 
       reqPath.add("/")
 
-      await res.mofuwSend2(redirectTo(
+      await res.mofuwSend(redirectTo(
         "http://" / host / reqPath
       ))
 
