@@ -208,7 +208,9 @@ proc handler(fd: AsyncFD) {.async.} =
           if not(recv == "\c\L"):
             # add \c\L
             # because not added \c\L request.buf.add(recv)
-            request.buf.add("\c\L")
+            let cl = "\c\L"
+            request.recieved += cl.len
+            request.buf.add(cl)
             continue
 
           let r = mpParseRequest(addr request.buf[0], request.mhr)
@@ -227,6 +229,7 @@ proc handler(fd: AsyncFD) {.async.} =
               closeSocket(fd)
               break handler
             let r = await recv(fd, cl.parseInt)
+            request.recieved += r.len
             request.buf.add(r)
 
           request.bodyStart = r
@@ -266,8 +269,8 @@ proc handler(fd: AsyncFD) {.async.} =
             closeSocket(fd)
             break handler
 
+          request.recieved += r
           if r == bufSize:
-            request.recieved += bufSize
             while true:
               let r = fd.SocketHandle.recv(addr buf[0], bufSize, 0)
               case r
