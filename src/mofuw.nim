@@ -56,7 +56,7 @@ const
   mByte = 1024 * kByte
 
   defaultBufferSize = 8 * kByte
-  defaultMaxBodySize {.intdefine.} = 1 * mByte
+  defaultMaxBodySize {.intdefine.} = 10 * mByte
   bufSize {.intdefine.} = 512
 
 var
