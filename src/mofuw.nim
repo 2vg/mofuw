@@ -235,6 +235,32 @@ proc handler(fd: AsyncFD) {.async.} =
           except:
             # TODO error check.
             discard
+
+          # for pipeline ?
+          var
+            isGETorHEAD = (request.getMethod == "GET") or (request.getMethod == "HEAD")
+            remainingBufferSize = request.buf.len - request.bodyStart - 1
+
+          while true:
+            if unlikely(isGETorHEAD and (remainingBufferSize > 0)):
+              request.buf.delete(0, request.bodyStart)
+              let r = mpParseRequest(addr request.buf[0], request.mhr)
+
+              if r <= 0:
+                await response.mofuwSend(notFound())
+                closeSocket(fd)
+                break handler
+
+              request.bodyStart = r
+              try:
+                await callback(request, response)
+              except:
+                # erro check.
+                discard
+              remainingBufferSize = request.buf.len - request.bodyStart - 1
+            else:
+              break
+
   else:
     var
       r: int
@@ -297,6 +323,31 @@ proc handler(fd: AsyncFD) {.async.} =
           except:
             # erro check.
             discard
+
+          # for pipeline ?
+          var
+            isGETorHEAD = (request.getMethod == "GET") or (request.getMethod == "HEAD")
+            remainingBufferSize = request.buf.len - request.bodyStart - 1
+
+          while true:
+            if unlikely(isGETorHEAD and (remainingBufferSize > 0)):
+              request.buf.delete(0, request.bodyStart)
+              let r = mpParseRequest(addr request.buf[0], request.mhr)
+
+              if r <= 0:
+                await response.mofuwSend(notFound())
+                closeSocket(fd)
+                break handler
+
+              request.bodyStart = r
+              try:
+                await callback(request, response)
+              except:
+                # erro check.
+                discard
+              remainingBufferSize = request.buf.len - request.bodyStart - 1
+            else:
+              break
 
 proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
