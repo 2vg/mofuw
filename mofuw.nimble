@@ -1,6 +1,6 @@
 # Package
 
-version       = "1.1.7"
+version       = "1.1.8"
 author        = "2vg"
 description   = "more faster, ultra performance webserver"
 license       = "MIT"
