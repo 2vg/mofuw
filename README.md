@@ -10,11 +10,9 @@
 > ~~mofuw is **M**eccha hayai Asynchronous I/**O** no super **F**ast de **U**ltra minimal na **W**eb server on Nim.~~
 
 ## ⚠
-In Windows, if the request size is the same as the buffer size, it becomes a reading ∞ loop.
+On Windows, breaking :3
 
-The current workaround is to increase the buffer size at compile time like `-d: bufSize: 65535`.
-
-I'll fix soon, sorry.
+fix soon.
 
 ## Wanted!!
 
@@ -160,6 +158,8 @@ if you want to see more example, see [tests](https://github.com/2vg/mofuw/tree/m
 - multi-thread event-loop.
 
 ## Benchmark
+Update(2018 - 06 - 11): mofuw is 24th on json tests :3 [techempowerRound16/JSON serialization](https://www.techempower.com/benchmarks/#section=data-r16&hw=ph&test=json)
+
 Update(2018 - 04 - 07): mofuw is very fast :) [tbrand/which_is_the_fastest Issue#104](https://github.com/tbrand/which_is_the_fastest/issues/101#issuecomment-379293774)
 
 ---
