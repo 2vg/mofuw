@@ -46,7 +46,7 @@ type
     tmp*: cstring
 
   mofuwRes* = object
-    fd: AsyncFD
+    transp: StreamTransport
 
   Callback = proc(req: mofuwReq, res: mofuwRes): Future[void]
 
@@ -143,9 +143,35 @@ proc body*(req: var mofuwReq, key: string = nil): string =
   req.bParams.getOrDefault(key)
 
 proc handler(server: StreamServer,
-             client: StreamTransport): Future[void] {.gcsafe.} =
+             client: StreamTransport) {.async.} =
 
-  discard
+  var
+    req = mofuwReq(buf: "", mhr: MPHTTPReq())
+    res = mofuwRes(transp: client)
+    buf: array[bufSize, char]
+
+  while not client.atEof():
+    let r = await client.readOnce(addr buf[0], bufSize)
+
+    if r == 0: client.close()
+
+    let ol = req.buf.len
+    req.buf.setLen(ol+r)
+    for i in 0 ..< r: req.buf[ol+i] = buf[i]
+
+    if likely(r < bufSize):
+      break
+    else:
+      continue
+
+  let r = mpParseRequest(addr req.buf[0], req.mhr)
+
+  block:
+    try:
+      asyncCheck callback(req, res)
+    except:
+      # TODO error check.
+      discard
 
 proc newMofuwServer(host: TransportAddress,
                     backlog = defaultBacklog()): StreamServer =
@@ -156,7 +182,8 @@ proc newMofuwServer(host: TransportAddress,
     host = host,
     cbproc = handler,
     sock =  serverSocket,
-    backlog = backlog
+    backlog = backlog,
+    flags = {ReuseAddr, ReusePort}
   )
 
 proc runServer(host: TransportAddress, 
@@ -164,6 +191,14 @@ proc runServer(host: TransportAddress,
                cb: Callback) =
 
   callback = cb
+
+  updateServerTime()
+  addTimer(1000, updateTime)
+
+  let server = newMofuwServer(host)
+
+  server.start()
+  waitFor server.join
 
 proc mofuwRun*(cb: Callback,
                address: string = "0.0.0.0",
