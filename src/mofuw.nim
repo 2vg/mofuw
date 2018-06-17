@@ -285,34 +285,36 @@ proc handler(fd: AsyncFD) {.async.} =
           let ol = request.buf.len
           request.buf.setLen(ol+r)
           for i in 0 ..< r: request.buf[ol+i] = buf[i]
-  
-          if request.buf.len > maxBodySize:
-            await response.mofuwSend(bodyTooLarge())
-            closeSocket(fd)
-            break handler
 
           if r == bufSize:
             while true:
               let r = fd.SocketHandle.recv(addr buf[0], bufSize, 0)
               case r
               of 0:
-                await response.mofuwSend(bodyTooLarge())
+                await response.mofuwSend(badRequest())
                 closeSocket(fd)
                 break handler
               of -1:
                 if osLastError().int in {EAGAIN, EWOULDBLOCK}: break
-                await response.mofuwSend(bodyTooLarge())
+                await response.mofuwSend(badRequest())
                 closeSocket(fd)
                 break handler
               else:
                 let ol = request.buf.len
                 request.buf.setLen(ol+r)
                 for i in 0 ..< r: request.buf[ol+i] = buf[i]
-  
+
           let r = mpParseRequest(addr request.buf[0], request.mhr)
 
           if r <= 0:
-            await response.mofuwSend(notFound())
+            await response.mofuwSend(badRequest())
+            closeSocket(fd)
+            break handler
+
+          var isGETorHEAD = (request.getMethod == "GET") or (request.getMethod == "HEAD")
+
+          if unlikely((request.buf.len > maxBodySize) && isGETorHEAD):
+            await response.mofuwSend(bodyTooLarge())
             closeSocket(fd)
             break handler
         
@@ -325,9 +327,7 @@ proc handler(fd: AsyncFD) {.async.} =
             discard
 
           # for pipeline ?
-          var
-            isGETorHEAD = (request.getMethod == "GET") or (request.getMethod == "HEAD")
-            remainingBufferSize = request.buf.len - request.bodyStart - 1
+          var remainingBufferSize = request.buf.len - request.bodyStart - 1
 
           while true:
             if unlikely(isGETorHEAD and (remainingBufferSize > 0)):
@@ -335,7 +335,7 @@ proc handler(fd: AsyncFD) {.async.} =
               let r = mpParseRequest(addr request.buf[0], request.mhr)
 
               if r <= 0:
-                await response.mofuwSend(notFound())
+                await response.mofuwSend(badRequest())
                 closeSocket(fd)
                 break handler
 
