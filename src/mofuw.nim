@@ -147,11 +147,9 @@ proc handler(server: StreamServer,
 
   discard
 
-proc newMofuwServer(address: string = "0.0.0.0",
-                    port: int = 8080,
+proc newMofuwServer(host: TransportAddress,
                     backlog = defaultBacklog()): StreamServer =
-  discard
-  let host = initTAddress(address & ":" & $port)
+
   let serverSocket = newServerSocket().AsyncFD
 
   return createStreamServer(
@@ -160,3 +158,24 @@ proc newMofuwServer(address: string = "0.0.0.0",
     sock =  serverSocket,
     backlog = backlog
   )
+
+proc runServer(host: TransportAddress, 
+               maxBodySize: int,
+               cb: Callback) =
+
+  callback = cb
+
+proc mofuwRun*(cb: Callback,
+               address: string = "0.0.0.0",
+               port: int = 8080,
+               backlog: int = defaultBacklog(),
+               maxBodySize: int = defaultMaxBodySize) =
+
+  if cb == nil: raise newException(Exception, "callback is nil.")
+
+  let host = initTAddress(address & ":" & $port)
+
+  for i in 0 ..< countCPUs():
+    spawn runServer(host, maxBodySize, cb)
+
+  sync()
