@@ -14,11 +14,13 @@ On Windows, breaking :3
 
 fix soon.
 
-## Wanted!!
-
-looking for people who develop together for the development of mofuw!
-
-there are many things to do, such as adding functions, improving speed, bug fixing, etc. :)
+## Feature
+- high-performance
+- low used memory
+- used backend is Nim's asyncdispatch, so all is Asynchronous I/O :)
+- my parser is implement like [picohttpparser](https://github.com/h2o/picohttpparser), so Zero-Copy, ultra fast parsing... yeah, fast may.
+- Easy API, create Web Application, create an extended Web server
+- multi-thread event-loop.
 
 ## Build Status
 
@@ -29,7 +31,6 @@ there are many things to do, such as adding functions, improving speed, bug fixi
 #### Windows: [![Build status](https://ci.appveyor.com/api/projects/status/m6g40k0fd3m1w08t?svg=true)](https://ci.appveyor.com/project/2vg/mofuw)
 
 ## Why is Windows at the bottom of build status section ?
-
 A. because Windows is shitty.
 
 ## Warning
@@ -55,10 +56,12 @@ A. **No**. but, tired of memory management lel.
 
 ## Require
 - Nim >= 0.18.0
+- mofuparser
+- mofuhttputils
 
 ## Support Platforms
 - Windows10 (tested on x64)
-- Linux
+- Linux (tested on x64 ArchLinux)
 - MacOSX
 
 ## awesome mofuw project
@@ -149,42 +152,10 @@ if you will using mofuw, you will be very surprised.
 
 if you want to see more example, see [tests](https://github.com/2vg/mofuw/tree/master/tests)
 
-## Feature
-- high-performance
-- low used memory
-- used backend is Nim's asyncdispatch, so all is Asynchronous I/O :)
-- my parser is implement like [picohttpparser](https://github.com/h2o/picohttpparser), so Zero-Copy, ultra fast parsing... yeah, fast may.
-- Easy API, create Web Application, create an extended Web server
-- multi-thread event-loop.
-
 ## Benchmark
 Update(2018 - 06 - 11): mofuw is 24th on json tests :3 [techempowerRound16/JSON serialization](https://www.techempower.com/benchmarks/#section=data-r16&hw=ph&test=json)
 
 Update(2018 - 04 - 07): mofuw is very fast :) [tbrand/which_is_the_fastest Issue#104](https://github.com/tbrand/which_is_the_fastest/issues/101#issuecomment-379293774)
-
----
-
-see this my benchmark result.
-
-mofuw is more faster than [tokio-minihttp](https://github.com/tokio-rs/tokio-minihttp).
-
-~~Update: changed routing match is using hash table so performance was down but a bit faster than tokio-mini yet.~~
-
-### my server spec:
-
-- OS: Arch Linux 4.13.8-1-ARCH
-- CPU: Intel core 2Duo T7700 2.40GHz 3 Core
-- MEM: 2GB
-
-### tokio-minihttp
-
-![tokio-minihttp.png](images/tokio-minihttp.png)
-
-### mofuw
-
-![mofuw.png](images/mofuw.png)
-
-this is a benchmark result of [techempower](https://www.techempower.com/benchmarks/#section=data-r15&hw=ph&test=plaintext), but if can apply my benchmark result to this techempower's benchmark result, **👑 mofuw can aim at 1st place 👑**.
 
 ## Todo
 - [x] ~~header make proc(?)~~
