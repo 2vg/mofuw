@@ -313,7 +313,7 @@ proc handler(fd: AsyncFD) {.async.} =
 
           var isGETorHEAD = (request.getMethod == "GET") or (request.getMethod == "HEAD")
 
-          if unlikely((request.buf.len > maxBodySize) && isGETorHEAD):
+          if unlikely((request.buf.len > maxBodySize) and isGETorHEAD):
             await response.mofuwSend(bodyTooLarge())
             closeSocket(fd)
             break handler
