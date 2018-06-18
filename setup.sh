@@ -25,6 +25,3 @@ else
   fi
 fi
 popd
-
-chmod +x altlib.sh
-./altlib.sh
