@@ -388,9 +388,9 @@ proc mofuwRun*(cb: Callback,
   if cb == nil:
     raise newException(Exception, "callback is nil.")
 
-  if isDebug.bool:
-    errorLogFile = openAsync("error.log")
-    accessLogFile = openAsync("access.log")
+  #if isDebug.bool:
+  #  errorLogFile = openAsync("error.log")
+  #  accessLogFile = openAsync("access.log")
 
   cacheTables = newTable[string, string]()
 
