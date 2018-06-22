@@ -272,6 +272,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
         finally:
           break 
       else:
+        if unlikely(request.buf.len != 0): request.buf = ""
         let ol = request.buf.len
         request.buf.setLen(ol+r)
         for i in 0 ..< r: request.buf[ol+i] = buf[i]
