@@ -9,12 +9,8 @@
 
 > ~~mofuw is **M**eccha hayai Asynchronous I/**O** no super **F**ast de **U**ltra minimal na **W**eb server on Nim.~~
 
-## ⚠
-On Windows, breaking :3
-
-fix soon.
-
 ## Feature
+- cross platform
 - high-performance
 - low used memory
 - used backend is Nim's asyncdispatch, so all is Asynchronous I/O :)
@@ -38,22 +34,6 @@ mofuw is now developping.
 
 please be careful when using.
 
-## FAQ
-- Why fast ?
-because using asyncdispatch, and using fast parser.
-
-about my parser, check [mofuparser](https://github.com/2vg/mofuparser)
-
-- Why changed using libuv to asyncdispatch ?
-
-A. because asyncdispatch is great module than libuv.
-
-asyncdispatch is very easy to use and excellent in handling asynchronous IO.
-
-- dislike libuv ?
-
-A. **No**. but, tired of memory management lel.
-
 ## Require
 - Nim >= 0.18.0
 - mofuparser
@@ -62,10 +42,10 @@ A. **No**. but, tired of memory management lel.
 ## Support Platforms
 - Windows10 (tested on x64)
 - Linux (tested on x64 ArchLinux)
-- MacOSX
+- macOS
 
 ## awesome mofuw project
-- [mofuw_apiserver](https://github.com/OdaDaisuke/mofuw_apiserver)
+- [mofuw-api-boilerplate](https://github.com/OdaDaisuke/mofuw-api-boilerplate)
 
 ## Setup
 before mofuw install, 
@@ -113,11 +93,7 @@ import mofuw
 proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
   routes:
     get "/":
-      mofuwResp(
-        HTTP200,
-        "text/plain",
-        "Hello, World!"
-      )
+      mofuwOK("Hello, World")
 
 handler.mofuwRun() # default listening port: 8080
 ```
@@ -135,11 +111,7 @@ proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
   # public directory serving.
   routesStatic "public":
     get "/api/hello":
-      mofuwResp(
-        HTTP200,
-        "text/plain",
-        "Hello, World!"
-      )
+      mofuwOK("hello")
 
 handler.mofuwRun()
 ```
