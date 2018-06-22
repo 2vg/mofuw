@@ -8,11 +8,11 @@ proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
         "text/plain",
         "Hello, World!")
 
-    get "/user/@id":
+    get "/user/@id/?":
       mofuwResp(
         HTTP200,
         "text/plain",
-        "Hello, " & req.params["id"] & "!")
+        "Hello, " & req.params("id") & "!")
 
     post "/create":
       mofuwResp(
