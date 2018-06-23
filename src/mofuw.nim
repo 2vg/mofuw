@@ -48,7 +48,7 @@ type
     ip*: string
     buf*: string
     bodyStart: int
-    bodyParams, params, query: StringTableRef
+    bodyParams, uriParams, uriQuerys: StringTableRef
     # this is for big request
     # TODO
     tmp*: cstring
@@ -146,18 +146,18 @@ proc toHttpHeaders*(req: mofuwReq): HttpHeaders {.inline.} =
   result = req.mhr.toHttpHeaders()
 
 proc setParam*(req: mofuwReq, params: StringTableRef) {.inline.} =
-  req.params = params
+  req.uriParams = params
 
 proc setQuery*(req: mofuwReq, query: StringTableRef) {.inline.} =
-  req.query = query
+  req.uriQuerys = query
 
 proc params*(req: mofuwReq, key: string): string =
-  if req.params.isNil: return nil
-  req.params.getOrDefault(key)
+  if req.uriParams.isNil: return nil
+  req.uriParams.getOrDefault(key)
 
 proc query*(req: mofuwReq, key: string): string =
-  if req.query.isNil: return nil
-  req.query.getOrDefault(key)
+  if req.uriQuerys.isNil: return nil
+  req.uriQuerys.getOrDefault(key)
 
 proc body*(req: mofuwReq, key: string = nil): string =
   if key.isNil: return $req.buf[req.bodyStart .. ^1]
