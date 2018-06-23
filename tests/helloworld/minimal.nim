@@ -1,6 +1,5 @@
-import mofuw
-proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
-  routes:
-    get "/":
-      mofuwOK("Hello, World!")
-handler.mofuwRun()
+import ../../src/mofuw
+routes:
+  get "/":
+    mofuwOK("Hello, World")
+mofuwRun(8080)
