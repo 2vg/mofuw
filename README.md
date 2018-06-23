@@ -90,30 +90,11 @@ minimal example is this 👇
 ```nim
 import mofuw
 
-proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
-  routes:
-    get "/":
-      mofuwOK("Hello, World")
+routes:
+  get "/":
+    mofuwOK("Hello, World")
 
-handler.mofuwRun() # default listening port: 8080
-```
-
-want serve static file ? OKOK, no problem.
-
-can use mofuw's middleware, and can use `routesStatic` macro.
-
-```nim
-import
-  mofuw,
-  mofuw/middleware/staticServe/mofuwStaticServe
-
-proc handler(req: mofuwReq, res: mofuwRes) {.async.} =
-  # public directory serving.
-  routesStatic "public":
-    get "/api/hello":
-      mofuwOK("hello")
-
-handler.mofuwRun()
+mofuwRun() # default listening port: 8080
 ```
 
 W O W, super E A S Y !!!!!! AMAZING !!!!!!!
