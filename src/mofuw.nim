@@ -1,5 +1,6 @@
 import
   net,
+  uri,
   json,
   times,
   hashes,
@@ -31,14 +32,15 @@ from os import osLastError
 import
   mofuparser,
   mofuhttputils,
-  mofuw/jesterPatterns,
+  mofuw/nest,
   mofuw/jesterUtils
 
 export
+  uri,
+  nest,
   strtabs,
   mofuhttputils,
-  asyncdispatch,
-  jesterPatterns
+  asyncdispatch
 
 type
   mofuwReq* = ref object
@@ -67,7 +69,8 @@ const
   isDebug {.intdefine.} = if defined(release) or defined(safeRelease): 1 else: 0
 
 var cacheTables {.threadvar, deprecated.}: TableRef[string, string]
-var callback    {.threadvar.}: Callback
+var callback {.threadvar.}: Callback
+var serverPort {.threadvar.}: int
 var maxBodySize {.threadvar.}: int
 var errorLogFile {.threadvar.}, accessLogFile {.threadvar.}: AsyncFile
 
@@ -353,9 +356,9 @@ proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
   return false
 
-proc mofuwInit(port, backlog, mBodySize: int;
+proc mofuwInit(port, mBodySize: int;
                tables: TableRef[string, string]) {.async.} =
-  let server = newServerSocket(port, backlog).AsyncFD
+  let server = newServerSocket(port, defaultBacklog()).AsyncFD
   maxBodySize = mBodySize
   cacheTables = tables
   register(server)
@@ -373,16 +376,40 @@ proc mofuwInit(port, backlog, mBodySize: int;
       # await sleepAsync(10)
       continue
 
-proc run(port, backlog, maxBodySize: int;
+proc run(port, maxBodySize: int;
          cb: Callback, tables: TableRef[string, string]) {.thread.} =
 
   callback = cb
-  waitFor mofuwInit(port, backlog, maxBodySize, tables)
+  waitFor mofuwInit(port, maxBodySize, tables)
+
+proc setCallback*(cb: Callback) =
+  callback = cb
+
+proc setPort*(port: int) =
+  serverPort = port
+
+proc setMaxBodySize*(port: int) =
+  serverPort = port
+
+proc mofuwRun*(port: int = 8080,
+               maxBodySize: int = defaultMaxBodySize) =
+
+  if callback == nil:
+    raise newException(Exception, "callback is nil.")
+
+  #if isDebug.bool:
+  #  errorLogFile = openAsync("error.log")
+  #  accessLogFile = openAsync("access.log")
+
+  cacheTables = newTable[string, string]()
+
+  for i in 0 ..< countCPUs():
+    spawn run(port, maxBodySize, callback, cacheTables)
+
+  sync()
 
 proc mofuwRun*(cb: Callback,
                port: int = 8080,
-               backlog: int = defaultBacklog(),
-               bufSize: int = defaultBufferSize,
                maxBodySize: int = defaultMaxBodySize) =
 
   if cb == nil:
@@ -395,159 +422,130 @@ proc mofuwRun*(cb: Callback,
   cacheTables = newTable[string, string]()
 
   for i in 0 ..< countCPUs():
-    spawn run(port, backlog, maxBodySize, cb, cacheTables)
+    spawn run(port, maxBodySize, cb, cacheTables)
 
   sync()
 
-macro routes*(body: untyped): typed =
+macro mofuwHandler*(body: untyped): untyped =
   result = newStmtList()
 
-  var
-    methodCase = newNimNode(nnkCaseStmt)
-    methodTables = initTable[string, NimNode]()
-    caseTables = initTable[string, NimNode]()
-
-  methodCase.add(
-    newCall(
-      "getMethod",
-      ident("req")
-    )
+  let lam = newNimNode(nnkProcDef).add(
+    ident"mofuwHandler",newEmptyNode(),newEmptyNode(),
+    newNimNode(nnkFormalParams).add(
+      newEmptyNode(),
+      newIdentDefs(ident"req", ident"mofuwReq"),
+      newIdentDefs(ident"res", ident"mofuwRes")
+    ),
+    newNimNode(nnkPragma).add(ident"async"),
+    newEmptyNode(),
+    body
   )
 
+  result.add(lam)
+
+macro mofuwLambda(body: untyped): untyped =
+  result = newStmtList()
+
+  let lam = newNimNode(nnkLambda).add(
+    ident"mofuwHandler",newEmptyNode(),newEmptyNode(),
+    newNimNode(nnkFormalParams).add(
+      newEmptyNode(),
+      newIdentDefs(ident"req", ident"mofuwReq"),
+      newIdentDefs(ident"res", ident"mofuwRes")
+    ),
+    newNimNode(nnkPragma).add(ident"async"),
+    newEmptyNode(),
+    body
+  )
+
+  result.add(lam)
+
+macro routes*(body: untyped): untyped =
+  result = newStmtList()
+  result.add(parseStmt("""
+    let mofuwRouter = newRouter[proc(req: mofuwReq, res: mofuwRes): Future[void]]()
+  """))
+
+  # mofuwRouter.map(
+  #   proc(req: mofuwReq, res: mofuwRes) {.async.} =
+  #     body
+  # , "METHOD", "PATH")
   for i in 0 ..< body.len:
     case body[i].kind
     of nnkCommand:
-      let
-        cmdName = body[i][0].ident.`$`.normalize.toUpperAscii()
-        cmdPath = $body[i][1]
-
-      if not methodTables.hasKey(cmdName):
-        methodTables[cmdName] = newNimNode(nnkOfBranch)
-
-        methodTables[cmdName].add(newLit(cmdName))
-
-      if not caseTables.hasKey(cmdName):
-        caseTables[cmdName] = newStmtList()
-
-        caseTables[cmdName].add(
-          newNimNode(nnkVarSection).add(
-            newNimNode(nnkIdentDefs).add(
-              ident("pat"), 
-              ident("Pattern"),
-              newNimNode(nnkEmpty)
-            ),
-            newNimNode(nnkIdentDefs).add(
-              ident("re"), 
-              newNimNode(nnkTupleTy).add(
-                newNimNode(nnkIdentDefs).add(
-                  ident("matched"), 
-                  ident("bool"),
-                  newNimNode(nnkEmpty)
-                ),
-                newNimNode(nnkIdentDefs).add(
-                  ident("params"), 
-                  ident("StringTableRef"),
-                  newNimNode(nnkEmpty)
-                )
-              ),
-              newNimNode(nnkEmpty)
-            ),
-            newNimNode(nnkIdentDefs).add(
-              ident("path"), 
-              newNimNode(nnkEmpty),
-              newCall(
-                "getPath",
-                ident("req")
-              )
-            )
-          ),
-          newBlockStmt(
-            ident("router"),
-            newStmtList()
-          )
-        )
-
-      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
-        newAssignment(
-          ident("pat"),
-          newCall(
-            ident("parsePattern"),
-            newStrLitNode(cmdPath)
-          )
-        )
-      )
-
-      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
-        newAssignment(
-          ident("re"),
-          newCall(
-            ident("match"),
-            ident("pat"),
-            ident("path")
-          )
-        )
-      )
-
-      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
-        newAssignment(
-          newDotExpr(
-            ident("req"),
-            ident("params")
-          ),
-          newDotExpr(
-            ident("re"),
-            ident("params")
-          )
-        )
-      )
-
-      caseTables[cmdName].findChild(it.kind == nnkBlockStmt)[1].add(
-        newIfStmt(
-          (newDotExpr(
-            ident("re"),
-            ident("matched")
-          ),
-          body[i][2].add(
-            parseStmt("break router")
-          ))
+      let methodName = ($body[i][0]).normalize.toUpperAscii()
+      let pathName = $body[i][1]
+      result.add(
+        newCall("map", ident"mofuwRouter",
+          getAst(mofuwLambda(body[i][2])),
+          newLit(methodName),
+          newLit(pathName)
         )
       )
     else:
       discard
 
-  var
-    nFound = newStmtList()
-    elseMethod = newNimNode(nnkElse)
+  result.add(newCall(ident"compress", ident"mofuwRouter"))
 
-  nFound.add(
-    newNimNode(nnkCommand).add(
-      newIdentNode("asyncCheck"),
-      newCall(
-        "notFound",
-        ident("res")
-      )
-    )
+  let handlerBody = newStmtList()
+
+  handlerBody.add(
+    parseStmt"""
+    var headers = req.toHttpHeaders()
+    """,
+    parseStmt"""
+    let r = mofuwRouter.route(req.getMethod, parseUri(req.getPath), headers)
+    """
   )
 
-  elseMethod.add(
-    newStmtList(
-      newNimNode(nnkCommand).add(
-        newIdentNode("asyncCheck"),
-        newCall(
-          "notFound",
-          ident("res")
+  # if r.status == routingFailure:
+  #   await res.mofuwSned(notFound())
+  # else:
+  #   req.setParam(r.arguments.pathArgs)
+  #   req.setQuery(r.arguments.queryArgs)
+  #   await r.handler(req, res)
+  handlerBody.add(
+    newNimNode(nnkIfStmt).add(
+      newNimNode(nnkElifBranch).add(
+        infix(
+          newDotExpr(ident"r", ident"status"),
+          "==",
+          ident"routingFailure"
+        ),
+        newStmtList().add(
+          newNimNode(nnkCommand).add(
+            ident"await",
+            newCall(
+              newDotExpr(ident"res", ident"mofuwSend"),
+              newCall("notFound")
+            )
+          )
+        )
+      ),
+      newNimNode(nnkElse).add(
+        newStmtList(
+          newCall(
+            newDotExpr(ident"req", ident"setParam"),
+            newDotExpr(newDotExpr(ident"r", ident"arguments"), ident"pathArgs")
+          ),
+          newCall(
+            newDotExpr(ident"req", ident"setQuery"),
+            newDotExpr(newDotExpr(ident"r", ident"arguments"), ident"queryArgs")
+          ),
+          newNimNode(nnkCommand).add(
+            ident"await",
+            newCall(
+              newDotExpr(ident"r", ident"handler"),
+              ident"req", ident"res"
+            )
+          )
         )
       )
     )
   )
 
-  for k, v in caseTables.pairs:
-    v.findChild(it.kind == nnkBlockStmt)[1].add(nFound)
-    methodTables[k].add(v)
+  result.add(getAst(mofuwHandler(handlerBody)))
 
-  for k, v in methodTables.pairs:
-    methodCase.add(v)
-
-  methodCase.add(elseMethod)
-
-  result.add(methodCase)
+  result.add(parseStmt("""
+    setCallback(mofuwHandler)
+  """))
