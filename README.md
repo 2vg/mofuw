@@ -97,6 +97,21 @@ routes:
 mofuwRun() # default listening port: 8080
 ```
 
+or, you can use your own handler.
+
+```nim
+import mofuw
+
+mofuwHandler:
+  if req.getMethod == "GET":
+    if req.getPath == "/":
+      mofuwOK("Hello, World")
+  else:
+    res.mofuwSend(notFound())
+
+mofuwHandler.mofuwRun(8080)
+```
+
 W O W, super E A S Y !!!!!! AMAZING !!!!!!!
 
 and...... hyper F A S T !!!!!!! YEAHHHHHHHHHHH.....
