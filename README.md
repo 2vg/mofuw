@@ -14,9 +14,10 @@
 - high-performance
 - low used memory
 - used backend is Nim's asyncdispatch, so all is Asynchronous I/O :)
-- my parser is implement like [picohttpparser](https://github.com/h2o/picohttpparser), so Zero-Copy, ultra fast parsing... yeah, fast may.
+- my parser is implement like [picohttpparser](https://github.com/h2o/picohttpparser), so Zero-Copy, ultra fast parsing... yeah, fast may
 - Easy API, create Web Application, create an extended Web server
-- multi-thread event-loop.
+- multi-thread event-loop
+- support WebSocket
 
 ## Build Status
 
