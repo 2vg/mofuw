@@ -475,7 +475,7 @@ macro routes*(body: untyped): untyped =
   for i in 0 ..< body.len:
     case body[i].kind
     of nnkCommand:
-      let methodName = ($body[i][0]).normalize.toUpperAscii()
+      let methodName = ($body[i][0]).normalize.toLowerAscii()
       let pathName = $body[i][1]
       result.add(
         newCall("map", ident"mofuwRouter",
