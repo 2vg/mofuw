@@ -1,4 +1,4 @@
-import websocket, mofuw
+import mofuw/websocket, mofuw
 
 mofuwHandler:
   let (ws, error) = await verifyWebsocketRequest(req, res)
