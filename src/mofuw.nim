@@ -320,9 +320,10 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
         request.bodyStart = r
 
         try:
+          # TODO: timeout
           await callback(request, response)
         except:
-          # erro check.
+          # TODO: error check.
           let fut = response.mofuwSend(badGateway())
           fut.callback = proc() =
             closeSocket(response.fd)
@@ -343,9 +344,10 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
 
             request.bodyStart = r
             try:
+              # TODO: timeout
               await callback(request, response)
             except:
-              # erro check.
+              # TODO: error check.
               let fut = response.mofuwSend(badGateway())
               fut.callback = proc() =
                 closeSocket(response.fd)

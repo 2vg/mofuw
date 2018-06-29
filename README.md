@@ -9,8 +9,18 @@
 
 > ~~mofuw is **M**eccha hayai Asynchronous I/**O** no super **F**ast de **U**ltra minimal na **W**eb server on Nim.~~
 
+mofuw is a high-performance web server (or web framework) made with Nim.
+
+By default, routing is built in and it is possible to start developing Web application immediately.
+
+mofuw places emphasis on compatibility between usability and performance.
+
+Although it is already used in business and almost stable, the some function as an HTTP server is incomplete,
+
+so please be careful when using it.
+
 ## Feature
-- cross platform
+- cross platform(Windows, macOS, Linux)
 - high-performance
 - low used memory
 - used backend is Nim's asyncdispatch, so all is Asynchronous I/O :)
