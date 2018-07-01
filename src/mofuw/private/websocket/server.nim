@@ -105,7 +105,7 @@ proc verifyWebsocketRequest*(req: mofuwReq, res: mofuwRes, protocol = ""):
 
   new(result.ws)
   result.ws.kind = SocketKind.Server
-  result.ws.sock = req.client
+  result.ws.sock = newAsyncSocket(res.fd)
   result.ws.protocol = protocol
 
   result.error = ""
