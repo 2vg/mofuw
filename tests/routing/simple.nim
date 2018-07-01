@@ -4,7 +4,7 @@ routes:
   get "/":
     mofuwOK("Hello, World!")
 
-  get "/user/@id/?":
+  get "/user/{id}":
     mofuwOK("Hello, " & req.params("id") & "!")
 
   post "/create":
