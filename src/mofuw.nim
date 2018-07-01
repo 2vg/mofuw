@@ -10,6 +10,7 @@ import
   logging,
   strtabs,
   strutils,
+  asyncnet,
   asyncfile,
   strformat,
   threadpool,
@@ -17,7 +18,6 @@ import
   nativesockets
 
 from httpcore import HttpHeaders
-from asyncnet import newAsyncSocket, AsyncSocket
 
 when defined(windows):
   from winlean import TCP_NODELAY, WSAEWOULDBLOCK
@@ -56,7 +56,7 @@ type
     tmp*: cstring
 
   mofuwRes* = ref object
-    fd: AsyncFD
+    fd*: AsyncFD
 
   Callback = proc(req: mofuwReq, res: mofuwRes): Future[void]
 
@@ -258,12 +258,32 @@ proc serverError*(res: mofuwRes): string =
   let stackTrace = exp.getStackTrace()
   result = $exp.name & ": " & exp.msg & "\n" & stackTrace
 
+proc doubleCRLFCheck(req: var mofuwReq, res: mofuwRes): int =
+  let bodyStart = mpParseRequest(addr req.buf[0], req.mhr)
+
+  let hMethod =
+    if not req.mhr.httpMethod.isNil: req.getMethod
+    else: ""
+
+  if likely(hMethod == "GET" or hMethod == "HEAD"):
+    if req.buf[^1] == '\l' and req.buf[^2] == '\r' and
+       req.buf[^3] == '\l' and req.buf[^4] == '\r':
+      return 0
+    else: return -1
+  else:
+    if unlikely(req.buf.len - bodyStart > maxBodySize):
+      return -2
+    else:
+      if likely(bodyStart > 0): req.bodyStart = bodyStart; return 0
+      else: return -1
+
 proc handler(fd: AsyncFD, ip: string) {.async.} =
   var
     request = mofuwReq(client: newAsyncSocket(fd), buf: "", mhr: MPHTTPReq())
     response = mofuwRes(fd: fd)
     r: int
     buf: array[bufSize, char]
+    bigBuf: array[bufSize*2, char]
 
   block handler:
     while true:
@@ -280,11 +300,15 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
         if unlikely(request.buf.len != 0): request.buf = ""
         let ol = request.buf.len
         request.buf.setLen(ol+r)
-        for i in 0 ..< r: request.buf[ol+i] = buf[i]
+        copyMem(addr request.buf[ol], addr buf[0], r)
 
         if r == bufSize:
           while true:
-            let r = fd.SocketHandle.recv(addr buf[0], bufSize, 0)
+            let r =
+              when defined(windows):
+                fd.SocketHandle.recv(addr bigBuf[0], bufSize*2.cint, 0)
+              else:
+                fd.SocketHandle.recv(addr bigBuf[0], bufSize*2, 0)
             case r
             of 0:
               await response.mofuwSend(badRequest())
@@ -301,23 +325,23 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
             else:
               let ol = request.buf.len
               request.buf.setLen(ol+r)
-              for i in 0 ..< r: request.buf[ol+i] = buf[i]
+              copyMem(addr request.buf[ol], addr bigBuf[0], r)
+              case request.doubleCRLFCheck(response):
+                of 0: break
+                of -1: continue
+                of -2:
+                  await response.mofuwSend(bodyTooLarge())
+                  closeSocket(fd)
+                  break handler
+                else: discard
 
-        let r = mpParseRequest(addr request.buf[0], request.mhr)
-
-        if r <= 0:
-          await response.mofuwSend(badRequest())
-          closeSocket(fd)
-          break handler
-
-        var isGETorHEAD = (request.getMethod == "GET") or (request.getMethod == "HEAD")
-
-        if unlikely((request.buf.len > maxBodySize) and (not isGETorHEAD)):
-          await response.mofuwSend(bodyTooLarge())
-          closeSocket(fd)
-          break handler
-
-        request.bodyStart = r
+        if likely(not r > 0):
+          let r = mpParseRequest(addr request.buf[0], request.mhr)
+          if r <= 0:
+            await response.mofuwSend(badRequest())
+            closeSocket(fd)
+            break handler
+          request.bodyStart = r
 
         try:
           # TODO: timeout
@@ -330,7 +354,9 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
           break handler
 
         # for pipeline ?
-        var remainingBufferSize = request.buf.len - request.bodyStart - 1
+        var
+          isGETorHEAD = (request.getMethod == "GET") or (request.getMethod == "HEAD")
+          remainingBufferSize = request.buf.len - request.bodyStart - 1
 
         while true:
           if unlikely(isGETorHEAD and (remainingBufferSize > 0)):
