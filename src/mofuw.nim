@@ -290,12 +290,8 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
       # using our buffer
       r = await recvInto(fd, addr buf[0], bufSize)
       if r == 0:
-        try:
-          closeSocket(fd)
-        except:
-          discard
-        finally:
-          break 
+        closeSocket(fd)
+        return
       else:
         if unlikely(request.buf.len != 0): request.buf = ""
         let ol = request.buf.len
@@ -361,6 +357,11 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
         while true:
           if unlikely(isGETorHEAD and (remainingBufferSize > 0)):
             request.buf.delete(0, request.bodyStart)
+
+            if not (request.buf[^1] == '\l' and request.buf[^2] == '\r' and
+                    request.buf[^3] == '\l' and request.buf[^4] == '\r'):
+              break
+
             let r = mpParseRequest(addr request.buf[0], request.mhr)
 
             if r <= 0:
@@ -394,7 +395,13 @@ proc mofuwInit(port, mBodySize: int;
   register(server)
   updateServerTime()
   addTimer(1000, false, updateTime)
+
+  var cantAccept = false
   while true:
+    if unlikely cantAccept:
+      await sleepAsync(10)
+      cantAccept = false
+
     try:
       let data = await acceptAddr(server)
       let (address, client) = data
@@ -404,7 +411,7 @@ proc mofuwInit(port, mBodySize: int;
     except:
       # TODO async sleep.
       # await sleepAsync(10)
-      continue
+      cantAccept = true
 
 proc run(port, maxBodySize: int;
          cb: Callback, tables: TableRef[string, string]) {.thread.} =
