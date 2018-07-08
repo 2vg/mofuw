@@ -358,7 +358,6 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
 
         while true:
           if unlikely(isGETorHEAD and (remainingBufferSize > 0)):
-            request.buf.delete(0, request.bodyStart)
             if not (request.buf[^1] == '\l' and request.buf[^2] == '\r' and
                    request.buf[^3] == '\l' and request.buf[^4] == '\r'):
               break
