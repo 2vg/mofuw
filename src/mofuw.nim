@@ -10,14 +10,13 @@ import
   logging,
   strtabs,
   strutils,
-  asyncnet,
   asyncfile,
-  strformat,
   threadpool,
   asyncdispatch,
   nativesockets
 
 from httpcore import HttpHeaders
+from asyncnet import AsyncSocket
 
 when defined(windows):
   from winlean import TCP_NODELAY, WSAEWOULDBLOCK
@@ -291,7 +290,7 @@ proc doubleCRLFCheck(req: var mofuwReq): int =
 
 proc handler(fd: AsyncFD, ip: string) {.async.} =
   var
-    request = mofuwReq(client: newAsyncSocket(fd), buf: "", mhr: MPHTTPReq())
+    request = mofuwReq(buf: "", mhr: MPHTTPReq())
     response = mofuwRes(fd: fd)
     r: int
     buf: array[bufSize, char]
