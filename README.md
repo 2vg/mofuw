@@ -15,18 +15,16 @@ By default, routing is built in and it is possible to start developing Web appli
 
 mofuw places emphasis on compatibility between usability and performance.
 
-Although it is already used in business and almost stable, the some function as an HTTP server is incomplete,
-
-so please be careful when using it.
-
 ## Feature
 - cross platform(Windows, macOS, Linux)
 - high-performance
 - low used memory
-- used backend is Nim's asyncdispatch, so all is Asynchronous I/O :)
-- my parser is implement like [picohttpparser](https://github.com/h2o/picohttpparser), so Zero-Copy, ultra fast parsing... yeah, fast may
-- Easy API, create Web Application, create an extended Web server
+- Asynchronous I/O
+- zero copy parser
+- Easy API, create Web Application or extended Web server
 - multi-thread event-loop
+- builtin routing
+- support HTTP pipeline / HTTP Streaming
 - support WebSocket
 
 ## Build Status
@@ -135,14 +133,6 @@ if you want to see more example, see [tests](https://github.com/2vg/mofuw/tree/m
 Update(2018 - 06 - 11): mofuw is 24th on json tests :3 [techempowerRound16/JSON serialization](https://www.techempower.com/benchmarks/#section=data-r16&hw=ph&test=json)
 
 Update(2018 - 04 - 07): mofuw is very fast :) [tbrand/which_is_the_fastest Issue#104](https://github.com/tbrand/which_is_the_fastest/issues/101#issuecomment-379293774)
-
-## Todo
-- [x] ~~header make proc(?)~~
-- [x] Cache (memory buffer ? collab with redis ?)
-- [ ] delete cache with timer;
-- [x] ~~File response (will soon complete)~~
-- [x] ~~routing (now support GET, POST, PATCH, PUT, DELETE, OPTIONS only, want to finish it early)~~
-- [x] ~~multi-thread (this need ?)~~
 
 ## Contribute
 **Pull requests are welcome !!!!!**
