@@ -331,7 +331,9 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
               # TODO: Content-Length error.
               discard
           elif request.getHeader("Transfer-Encoding") == "chunked":
-            while not(request.buf[^3] == '0' and
+            while not(request.buf[^5] == '0' and
+                      request.buf[^4] == '\r' and
+                      request.buf[^3] == '\l' and
                       request.buf[^2] == '\r' and
                       request.buf[^1] == '\l'):
               r = await recvInto(fd, addr buf[0], bufSize)
@@ -348,7 +350,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
               body.add(line)
               isBody = false
             copyMem(addr request.buf[request.bodyStart], addr body[0], body.len-1)
-            request.buf.delete(body.len..^1)
+            request.buf.delete(body.len, request.buf.len-1)
           else:
             await response.mofuwSend(badRequest())
             closeSocket(fd)
