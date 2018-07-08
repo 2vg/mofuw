@@ -258,7 +258,7 @@ proc serverError*(res: mofuwRes): string =
   let stackTrace = exp.getStackTrace()
   result = $exp.name & ": " & exp.msg & "\n" & stackTrace
 
-proc doubleCRLFCheck(req: var mofuwReq, res: mofuwRes): int =
+proc doubleCRLFCheck(req: var mofuwReq): int =
   let bodyStart = mpParseRequest(addr req.buf[0], req.mhr)
 
   let hMethod =
@@ -308,7 +308,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
       request.buf.setLen(ol+r)
       copyMem(addr request.buf[ol], addr buf[0], r)
 
-      case request.doubleCRLFCheck(response)
+      case request.doubleCRLFCheck()
       of 0:
         let isGETorHEAD = (request.getMethod == "GET") or (request.getMethod == "HEAD")
 
@@ -322,8 +322,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
               except:
                 -1
             if cLen != -1:
-              let bodyBuf = request.buf.len - request.bodyStart
-              while bodyBuf != cLen:
+              while request.buf.len - request.bodyStart != cLen:
                 r = await recvInto(fd, addr buf[0], bufSize)
                 if r == 0: closeSocket(fd); return
                 let ol = request.buf.len
@@ -358,16 +357,10 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
 
         while true:
           if unlikely(isGETorHEAD and (remainingBufferSize > 0)):
-            if not (request.buf[^1] == '\l' and request.buf[^2] == '\r' and
-                   request.buf[^3] == '\l' and request.buf[^4] == '\r'):
-              break
-
-            let r = mpParseRequest(addr request.buf[0], request.mhr)
+            let r = request.doubleCRLFCheck()
 
             if r <= 0:
-              await response.mofuwSend(badRequest())
-              closeSocket(fd)
-              break handler
+              break
 
             request.bodyStart = r
 
@@ -382,6 +375,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
               break handler
             remainingBufferSize = request.buf.len - request.bodyStart - 1
           else:
+            request.buf.setLen(0)
             break
 
       of -1: continue
