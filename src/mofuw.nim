@@ -330,9 +330,25 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
             else:
               # TODO: Content-Length error.
               discard
-          # TODO: suppoer chunk.
-          #elif request.getHeader("Transfer-Chunked-Encode") != "":
-            # do
+          elif request.getHeader("Transfer-Encoding") == "chunked":
+            while not(request.buf[^3] == '0' and
+                      request.buf[^2] == '\r' and
+                      request.buf[^1] == '\l'):
+              r = await recvInto(fd, addr buf[0], bufSize)
+              if r == 0: closeSocket(fd); return
+              let ol = request.buf.len
+              request.buf.setLen(ol+r)
+              copyMem(addr request.buf[ol], addr buf[0], r)
+            var body = ""
+            var isBody = false
+            for line in request.body.split("\r\l"):
+              if not isBody:
+                if line == "0": break
+                isBody = true; continue
+              body.add(line)
+              isBody = false
+            copyMem(addr request.buf[request.bodyStart], addr body[0], body.len-1)
+            request.buf.delete(body.len..^1)
           else:
             await response.mofuwSend(badRequest())
             closeSocket(fd)
