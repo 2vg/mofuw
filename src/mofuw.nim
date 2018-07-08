@@ -172,8 +172,7 @@ proc hash(str: string): Hash =
   result = !$h
 
 proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
-  var buf: string
-  shallowcopy(buf, body)
+  var buf = body
 
   # try send because raise exception.
   # buffer not protect, but
@@ -301,7 +300,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
       # using our buffer
       r = await recvInto(fd, addr buf[0], bufSize)
 
-      if r == 0: closeSocket(fd); return
+      if r == 0: closeSocket(fd); GC_unref(request.mhr); return
 
       let ol = request.buf.len
       request.buf.setLen(ol+r)
@@ -346,7 +345,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
 
         # our callback check.
         try:
-          # TODO: timeout
+          # TODO: timeout.
           await callback(request, response)
         except:
           # TODO: error check.
@@ -416,7 +415,7 @@ proc mofuwInit(port, mBodySize: int;
     try:
       let data = await acceptAddr(server)
       let (address, client) = data
-      client.SocketHandle.setBlocking(false)
+      #client.SocketHandle.setBlocking(false)
       # handler error check.
       asyncCheck handler(client, address)
     except:
