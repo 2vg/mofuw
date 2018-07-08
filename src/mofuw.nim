@@ -300,7 +300,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
       # using our buffer
       r = await recvInto(fd, addr buf[0], bufSize)
 
-      if r == 0: closeSocket(fd); GC_unref(request.mhr); return
+      if r == 0: closeSocket(fd); return
 
       let ol = request.buf.len
       request.buf.setLen(ol+r)
@@ -355,7 +355,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
           break handler
 
         # for pipeline ?
-        request.buf.delete(0, request.bodyStart)
+        request.buf.delete(0, request.bodyStart - 1)
 
         var remainingBufferSize = request.buf.len
 
@@ -363,10 +363,8 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
           if unlikely(isGETorHEAD and (remainingBufferSize > 0)):
             let r = request.doubleCRLFCheck()
 
-            if r <= 0:
+            if r < 0:
               break
-
-            request.bodyStart = r
 
             try:
               # TODO: timeout.
@@ -377,7 +375,9 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
               fut.callback = proc() =
                 closeSocket(response.fd)
               break handler
-            remainingBufferSize = request.buf.len - request.bodyStart - 1
+
+            request.buf.delete(0, request.bodyStart - 1)
+            remainingBufferSize = request.buf.len
           else:
             request.buf.setLen(0)
             break
