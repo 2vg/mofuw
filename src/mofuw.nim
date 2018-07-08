@@ -266,7 +266,8 @@ proc doubleCRLFCheck(req: var mofuwReq): int =
   if likely(hMethod == "GET" or hMethod == "HEAD"):
     if req.buf[^1] == '\l' and req.buf[^2] == '\r' and
        req.buf[^3] == '\l' and req.buf[^4] == '\r':
-      req.bodyStart = bodyStart; return 0
+      if likely(bodyStart != -1): req.bodyStart = bodyStart; return 0
+      return -1
     else: return -1
   else:
     if unlikely(hMethod == ""):
