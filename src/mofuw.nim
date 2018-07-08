@@ -64,7 +64,7 @@ const
   kByte = 1024
   mByte = 1024 * kByte
 
-  defaultBufferSize = 8 * kByte
+  defaultHeaderLineSize {.intdefine.} = 8 * kByte
   defaultMaxBodySize {.intdefine.} = 1 * mByte
   bufSize {.intdefine.} = 512
 
