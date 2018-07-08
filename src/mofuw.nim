@@ -339,6 +339,12 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
             closeSocket(fd)
             break handler
 
+          # If the request body is large,
+          # there is a possibility that
+          # the pointer of the buffer has been changed by setLen.
+          # So reparse the pointers up to \r\l\r\l.
+          discard mpParseRequest(addr request.buf[0], request.mhr)
+
         # our callback check.
         try:
           # TODO: timeout
