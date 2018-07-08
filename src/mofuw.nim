@@ -322,7 +322,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
               except:
                 -1
             if cLen != -1:
-              while request.buf.len - request.bodyStart != cLen:
+              while request.buf.len - request.bodyStart >= cLen:
                 r = await recvInto(fd, addr buf[0], bufSize)
                 if r == 0: closeSocket(fd); return
                 let ol = request.buf.len
