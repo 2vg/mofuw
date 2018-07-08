@@ -252,7 +252,7 @@ proc serverLogging*(req: mofuwReq, format: string = nil) =
       "time": time,
     }
 
-proc serverError*(res: mofuwRes): string =
+proc serverError*: string =
   let exp = getCurrentException()
   let stackTrace = exp.getStackTrace()
   result = $exp.name & ": " & exp.msg & "\n" & stackTrace
