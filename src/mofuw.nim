@@ -355,8 +355,6 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
               closeSocket(fd)
               break handler
 
-            echo chunkBuf[0..<chunkLen]
-
             moveMem(addr request.buf[request.bodyStart], addr chunkBuf[0], chunkLen)
             request.buf.delete(request.bodyStart + chunkLen, request.buf.len-1)
             # first chunk callback
