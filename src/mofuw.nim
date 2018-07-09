@@ -355,7 +355,9 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
               closeSocket(fd)
               break handler
 
-            moveMem(addr request.buf[request.bodyStart], addr chunkBuf[0], chunkLen-1)
+            echo chunkBuf[0..<chunkLen]
+
+            moveMem(addr request.buf[request.bodyStart], addr chunkBuf[0], chunkLen)
             request.buf.delete(request.bodyStart + chunkLen, request.buf.len-1)
             # first chunk callback
             try:
@@ -368,48 +370,49 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
                 closeSocket(response.fd)
               break handler
 
-            while true:
-              var bufLen = await recvInto(fd, addr bigBuf[0], bufSize*2)
-              let pRes = request.mc.mpParseChunk(addr bigBuf[0], bufLen)
-              case pRes
-              of -2:
-                let ol = request.buf.len
-                request.buf.setLen(ol+bufLen)
-                copyMem(addr request.buf[ol], addr bigBuf[0], bufLen)
-                # callback loop
-                # chunk processing
-                try:
-                  # TODO: timeout.
-                  await callback(request, response)
-                except:
-                  # TODO: error check.
-                  let fut = response.mofuwSend(badGateway())
-                  fut.callback = proc() =
-                    closeSocket(response.fd)
+            if parseRes == -2:
+              while true:
+                var bufLen = await recvInto(fd, addr bigBuf[0], bufSize*2)
+                let pRes = request.mc.mpParseChunk(addr bigBuf[0], bufLen)
+                case pRes
+                of -2:
+                  let ol = request.buf.len
+                  request.buf.setLen(ol+bufLen)
+                  copyMem(addr request.buf[ol], addr bigBuf[0], bufLen)
+                  # callback loop
+                  # chunk processing
+                  try:
+                    # TODO: timeout.
+                    await callback(request, response)
+                  except:
+                    # TODO: error check.
+                    let fut = response.mofuwSend(badGateway())
+                    fut.callback = proc() =
+                      closeSocket(response.fd)
+                    break handler
+                of -1:
+                  await response.mofuwSend(badRequest())
+                  closeSocket(fd)
                   break handler
-              of -1:
-                await response.mofuwSend(badRequest())
-                closeSocket(fd)
-                break handler
-              else:
-                if parseRes == 2:
-                  break
-                elif parseRes == 1:
-                  discard await recvInto(fd, addr bigBuf[0], 1)
-                elif parseRes == 0:
-                  discard await recvInto(fd, addr bigBuf[0], 2)
+                else:
+                  if parseRes == 2:
+                    break
+                  elif parseRes == 1:
+                    discard await recvInto(fd, addr bigBuf[0], 1)
+                  elif parseRes == 0:
+                    discard await recvInto(fd, addr bigBuf[0], 2)
 
-                # last callback
-                # end chunk process.
-                try:
-                  # TODO: timeout.
-                  await callback(request, response)
-                except:
-                  # TODO: error check.
-                  let fut = response.mofuwSend(badGateway())
-                  fut.callback = proc() =
-                    closeSocket(response.fd)
-                  break handler
+                  # last callback
+                  # end chunk process.
+                  try:
+                    # TODO: timeout.
+                    await callback(request, response)
+                  except:
+                    # TODO: error check.
+                    let fut = response.mofuwSend(badGateway())
+                    fut.callback = proc() =
+                      closeSocket(response.fd)
+                    break handler
 
             # if end chunk process, we must ready next request
             request.buf.setLen(0)
