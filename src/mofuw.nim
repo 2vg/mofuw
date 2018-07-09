@@ -344,6 +344,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
               # TODO: Content-Length error.
               discard
           elif request.getHeader("Transfer-Encoding") == "chunked":
+            request.mc = MPchunk()
             # Parsing chunks already in the buffer
             var chunkBuf = request.body
             var chunkLen = chunkBuf.len
