@@ -46,6 +46,7 @@ type
   mofuwReq* = ref object
     client*: AsyncSocket
     mhr: MPHTTPReq
+    mc: MPChunk
     ip*: string
     buf*: string
     bodyStart: int
@@ -296,6 +297,18 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
     buf: array[bufSize, char]
     bigBuf: array[bufSize*2, char]
 
+  template mofuwCallback(req: mofuwReq, res: mofuwRes) =
+    # our callback check.
+    try:
+      # TODO: timeout.
+      await callback(res, res)
+    except:
+      # TODO: error check.
+      let fut = res.mofuwSend(badGateway())
+      fut.callback = proc() =
+        closeSocket(res.fd)
+      break handler
+
   block handler:
     while true:
       # using our buffer
@@ -322,35 +335,84 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
                 -1
             if cLen != -1:
               while not(request.buf.len - request.bodyStart >= cLen):
-                r = await recvInto(fd, addr buf[0], bufSize)
+                r = await recvInto(fd, addr bigBuf[0], bufSize*2)
                 if r == 0: closeSocket(fd); return
                 let ol = request.buf.len
                 request.buf.setLen(ol+r)
-                copyMem(addr request.buf[ol], addr buf[0], r)
+                copyMem(addr request.buf[ol], addr bigBuf[0], r)
             else:
               # TODO: Content-Length error.
               discard
           elif request.getHeader("Transfer-Encoding") == "chunked":
-            while not(request.buf[^5] == '0' and
-                      request.buf[^4] == '\r' and
-                      request.buf[^3] == '\l' and
-                      request.buf[^2] == '\r' and
-                      request.buf[^1] == '\l'):
-              r = await recvInto(fd, addr buf[0], bufSize)
-              if r == 0: closeSocket(fd); return
-              let ol = request.buf.len
-              request.buf.setLen(ol+r)
-              copyMem(addr request.buf[ol], addr buf[0], r)
-            var body = ""
-            var isBody = false
-            for line in request.body.split("\r\l"):
-              if not isBody:
-                if line == "0": break
-                isBody = true; continue
-              body.add(line)
-              isBody = false
-            copyMem(addr request.buf[request.bodyStart], addr body[0], body.len-1)
-            request.buf.delete(body.len, request.buf.len-1)
+            # Parsing chunks already in the buffer
+            var chunkBuf = request.body
+            var chunkLen = chunkBuf.len
+            var parseRes = request.mc.mpParseChunk(addr chunkBuf[0], chunkLen)
+
+            if parseRes == -1:
+              await response.mofuwSend(badRequest())
+              closeSocket(fd)
+              break handler
+
+            moveMem(addr request.buf[request.bodyStart], addr chunkBuf[0], chunkLen-1)
+            request.buf.delete(request.bodyStart + chunkLen, request.buf.len-1)
+            # first chunk callback
+            try:
+              # TODO: timeout.
+              await callback(request, response)
+            except:
+              # TODO: error check.
+              let fut = response.mofuwSend(badGateway())
+              fut.callback = proc() =
+                closeSocket(response.fd)
+              break handler
+
+            while true:
+              var bufLen = await recvInto(fd, addr bigBuf[0], bufSize*2)
+              let pRes = request.mc.mpParseChunk(addr bigBuf[0], bufLen)
+              case pRes
+              of -2:
+                let ol = request.buf.len
+                request.buf.setLen(ol+bufLen)
+                copyMem(addr request.buf[ol], addr bigBuf[0], bufLen)
+                # callback loop
+                # chunk processing
+                try:
+                  # TODO: timeout.
+                  await callback(request, response)
+                except:
+                  # TODO: error check.
+                  let fut = response.mofuwSend(badGateway())
+                  fut.callback = proc() =
+                    closeSocket(response.fd)
+                  break handler
+              of -1:
+                await response.mofuwSend(badRequest())
+                closeSocket(fd)
+                break handler
+              else:
+                if parseRes == 2:
+                  break
+                elif parseRes == 1:
+                  discard await recvInto(fd, addr bigBuf[0], 1)
+                elif parseRes == 0:
+                  discard await recvInto(fd, addr bigBuf[0], 2)
+
+                # last callback
+                # end chunk process.
+                try:
+                  # TODO: timeout.
+                  await callback(request, response)
+                except:
+                  # TODO: error check.
+                  let fut = response.mofuwSend(badGateway())
+                  fut.callback = proc() =
+                    closeSocket(response.fd)
+                  break handler
+
+            # if end chunk process, we must ready next request
+            request.buf.setLen(0)
+            continue
           else:
             await response.mofuwSend(badRequest())
             closeSocket(fd)
