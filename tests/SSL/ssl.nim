@@ -7,4 +7,4 @@ routes:
   get "/":
     mofuwOK("Hello, SSL World!")
 
-mofuwRun(port = 443)
+mofuwRunWithSSL(port = 443)
