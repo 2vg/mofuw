@@ -20,12 +20,13 @@ mofuw places emphasis on compatibility between usability and performance.
 - high-performance
 - low used memory
 - Asynchronous I/O
+- builtin routing
+- support SSL
+- support HTTP pipeline / HTTP Streaming
+- support WebSocket
 - zero copy parser
 - Easy API, create Web Application or extended Web server
 - multi-thread event-loop
-- builtin routing
-- support HTTP pipeline / HTTP Streaming
-- support WebSocket
 
 ## Build Status
 
