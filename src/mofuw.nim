@@ -1,4 +1,5 @@
 import
+  os,
   net,
   uri,
   json,
@@ -9,6 +10,7 @@ import
   tables,
   logging,
   strtabs,
+  openssl,
   strutils,
   asyncfile,
   threadpool,
@@ -57,6 +59,10 @@ type
 
   mofuwRes* = ref object
     fd*: AsyncFD
+    when defined ssl:
+      isSSL*: bool
+      sslCtx*: SslCtx
+      sslHandle*: SslPtr
 
   Callback = proc(req: mofuwReq, res: mofuwRes): Future[void]
 
@@ -132,6 +138,97 @@ proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
 
   return server.getFd()
 
+when defined ssl:
+  const strongCipher = 
+    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256" &
+    ":ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384" &
+    ":DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-SHA256" &
+    ":ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384" & 
+    ":ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA" &
+    ":ECDHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256" &
+    ":DHE-RSA-AES256-SHA:ECDHE-ECDSA-DES-CBC3-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA" & 
+    ":AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:DES-CBC3-SHA:!DSS"
+
+  var sslCipher {.global.}: string
+  var sslCert {.global.}: string
+  var sslKey {.global.}: string
+  var sslCtx {.global.}: SslCtx
+
+  SSL_library_init()
+
+  proc loadCertificates(ctx: SSL_CTX, certFile, keyFile: string) =
+    if certFile != "" and (not existsFile(certFile)):
+      raise newException(system.IOError, "Certificate file could not be found: " & certFile)
+    if keyFile != "" and (not existsFile(keyFile)):
+      raise newException(system.IOError, "Key file could not be found: " & keyFile)
+
+    if certFile != "":
+      var ret = SSLCTXUseCertificateChainFile(ctx, certFile)
+      if ret != 1:
+        raiseSSLError()
+
+    if keyFile != "":
+      if SSL_CTX_use_PrivateKey_file(ctx, keyFile,
+                                    SSL_FILETYPE_PEM) != 1:
+        raiseSSLError()
+
+      if SSL_CTX_check_private_key(ctx) != 1:
+        raiseSSLError("Verification of private key file failed.")
+
+  proc newSSLContext(mode = CVerifyPeer): SslCtx =
+    var newCtx: SslCtx
+    newCTX = SSL_CTX_new(TLS_method())
+
+    let cipher = 
+      if sslCipher != nil or sslCipher != "": sslCipher
+      else: strongCipher
+
+    if newCTX.SSLCTXSetCipherList(cipher) != 1:
+      raiseSSLError()
+    case mode
+    of CVerifyPeer:
+      newCTX.SSLCTXSetVerify(SSLVerifyPeer, nil)
+    of CVerifyNone:
+      newCTX.SSLCTXSetVerify(SSLVerifyNone, nil)
+    if newCTX == nil:
+      raiseSSLError()
+
+    discard newCTX.SSLCTXSetMode(SSL_MODE_AUTO_RETRY)
+
+    newCTX.loadCertificates(sslCert, sslKey)
+
+    return newCtx
+
+  proc toSSLSocket(res: mofuwRes) =
+    res.sslHandle = SSLNew(res.sslCtx)
+    discard SSL_set_fd(res.sslHandle, res.fd.SocketHandle)
+    #res.fd.SOcketHandle.setBlocking(false)
+    discard SSL_accept(res.sslHandle)
+
+  proc asyncSSLRecv(res: mofuwRes, buf: ptr char, bufLen: int): Future[int] =
+    var retFuture = newFuture[int]("asyncSSLRecv")
+    proc cb(fd: AsyncFD): bool =
+      result = true
+      let rcv = SSL_read(res.sslHandle, buf, bufLen.cint)
+      if rcv <= 0:
+        retFuture.complete(0)
+      else:
+        retFuture.complete(rcv)
+    addRead(res.fd, cb)
+    return retFuture
+
+  proc setChiper*(ci: string) =
+    sslCipher = ci
+
+  proc setCert*(cert: string) =
+    sslCert = cert
+
+  proc setKey*(key: string) =
+    sslKey = key
+
+  proc mofuwSSLInit*(verify = CVerifyPeer) =
+    sslCtx = newSSLContext(verify)
+
 proc getMethod*(req: mofuwReq): string {.inline.} =
   result = getMethod(req.mhr)
 
@@ -166,11 +263,36 @@ proc body*(req: mofuwReq, key: string = nil): string =
   if req.bodyParams.isNil: req.bodyParams = req.body.bodyParse
   req.bodyParams.getOrDefault(key)
 
+proc setCallback*(cb: Callback) =
+  callback = cb
+
+proc setPort*(port: int) =
+  serverPort = port
+
+proc setMaxBodySize*(size: int) =
+  maxBodySize = size
+
 proc hash(str: string): Hash =
   var h = 0
   for v in str:
     h = h !& v.int
   result = !$h
+
+template mofuwClose(res: mofuwRes) =
+  try:
+    closeSocket(res.fd)
+  except:
+    # TODO send error logging
+    discard
+  if unlikely res.isSSL:
+    discard res.sslHandle.SSLShutdown()
+    res.sslHandle.SSLFree()
+
+proc mofuwRecvInto(res: mofuwRes, buf: pointer, bufLen: int): untyped =
+  if res.isSSL:
+    asyncSSLrecv(res, cast[ptr char](buf), bufLen)
+  else:
+    recvInto(res.fd, buf, bufLen)
 
 proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
   var buf = body
@@ -178,14 +300,19 @@ proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
   # try send because raise exception.
   # buffer not protect, but
   # mofuwReq have buffer, so this is safe.(?)
-  let fut = send(res.fd, addr(buf[0]), buf.len)
-  yield fut
-  if fut.failed:
-    try:
-      closeSocket(res.fd)
-    except:
-      # TODO send error logging
-      discard
+  if unlikely res.isSSL:
+    proc sslSend(fd: AsyncFD): bool {.closure.} =
+      # TODO: check return and error.
+      let sended = SSLWrite(res.sslHandle, addr buf[0], buf.len)
+      result = true
+
+    addWrite(res.fd, sslSend)
+    discard
+  else:
+    let fut = send(res.fd, addr(buf[0]), buf.len)
+    yield fut
+    if fut.failed:
+      res.mofuwClose()
 
 template mofuwResp*(status, mime, body: string): typed =
   asyncCheck res.mofuwSend(makeResp(
@@ -292,29 +419,22 @@ proc doubleCRLFCheck(req: var mofuwReq): int =
 proc handler(fd: AsyncFD, ip: string) {.async.} =
   var
     request = mofuwReq(buf: "", mhr: MPHTTPReq())
-    response = mofuwRes(fd: fd)
+    response =
+      if unlikely(not sslCtx.isNil):
+        let res = mofuwRes(fd: fd, isSSL: true, sslCtx: sslCtx)
+        toSSLSocket(res)
+        res
+      else: mofuwRes(fd: fd, isSSL: false)
     r: int
     buf: array[bufSize, char]
     bigBuf: array[bufSize*2, char]
 
-  template mofuwCallback(req: mofuwReq, res: mofuwRes) =
-    # our callback check.
-    try:
-      # TODO: timeout.
-      await callback(res, res)
-    except:
-      # TODO: error check.
-      let fut = res.mofuwSend(badGateway())
-      fut.callback = proc() =
-        closeSocket(res.fd)
-      break handler
-
   block handler:
     while true:
       # using our buffer
-      r = await recvInto(fd, addr buf[0], bufSize)
+      r = await mofuwRecvInto(response, addr buf[0], bufSize)
 
-      if r == 0: closeSocket(fd); return
+      if r == 0: response.mofuwClose(); return
 
       let ol = request.buf.len
       request.buf.setLen(ol+r)
@@ -335,8 +455,8 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
                 -1
             if cLen != -1:
               while not(request.buf.len - request.bodyStart >= cLen):
-                r = await recvInto(fd, addr bigBuf[0], bufSize*2)
-                if r == 0: closeSocket(fd); return
+                r = await mofuwRecvInto(response, addr bigBuf[0], bufSize*2)
+                if r == 0: response.mofuwClose(); return
                 let ol = request.buf.len
                 request.buf.setLen(ol+r)
                 copyMem(addr request.buf[ol], addr bigBuf[0], r)
@@ -352,7 +472,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
 
             if parseRes == -1:
               await response.mofuwSend(badRequest())
-              closeSocket(fd)
+              response.mofuwClose()
               break handler
 
             moveMem(addr request.buf[request.bodyStart], addr chunkBuf[0], chunkLen)
@@ -365,12 +485,12 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
               # TODO: error check.
               let fut = response.mofuwSend(badGateway())
               fut.callback = proc() =
-                closeSocket(response.fd)
+                response.mofuwClose()
               break handler
 
             if parseRes == -2:
               while true:
-                var bufLen = await recvInto(fd, addr bigBuf[0], bufSize*2)
+                var bufLen = await mofuwRecvInto(response, addr bigBuf[0], bufSize*2)
                 let pRes = request.mc.mpParseChunk(addr bigBuf[0], bufLen)
                 case pRes
                 of -2:
@@ -386,19 +506,19 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
                     # TODO: error check.
                     let fut = response.mofuwSend(badGateway())
                     fut.callback = proc() =
-                      closeSocket(response.fd)
+                      response.mofuwClose()
                     break handler
                 of -1:
                   await response.mofuwSend(badRequest())
-                  closeSocket(fd)
+                  response.mofuwClose()
                   break handler
                 else:
                   if parseRes == 2:
                     break
                   elif parseRes == 1:
-                    discard await recvInto(fd, addr bigBuf[0], 1)
+                    discard await mofuwRecvInto(response, addr bigBuf[0], 1)
                   elif parseRes == 0:
-                    discard await recvInto(fd, addr bigBuf[0], 2)
+                    discard await mofuwRecvInto(response, addr bigBuf[0], 2)
 
                   # last callback
                   # end chunk process.
@@ -409,7 +529,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
                     # TODO: error check.
                     let fut = response.mofuwSend(badGateway())
                     fut.callback = proc() =
-                      closeSocket(response.fd)
+                      response.mofuwClose()
                     break handler
 
             # if end chunk process, we must ready next request
@@ -417,7 +537,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
             continue
           else:
             await response.mofuwSend(badRequest())
-            closeSocket(fd)
+            response.mofuwClose()
             break handler
 
           # If the request body is large,
@@ -434,7 +554,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
           # TODO: error check.
           let fut = response.mofuwSend(badGateway())
           fut.callback = proc() =
-            closeSocket(response.fd)
+            response.mofuwClose()
           break handler
 
         # for pipeline ?
@@ -456,7 +576,7 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
               # TODO: error check.
               let fut = response.mofuwSend(badGateway())
               fut.callback = proc() =
-                closeSocket(response.fd)
+                response.mofuwClose()
               break handler
 
             request.buf.delete(0, request.bodyStart - 1)
@@ -468,11 +588,11 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
       of -1: continue
       of -2:
         await response.mofuwSend(bodyTooLarge())
-        closeSocket(fd)
+        response.mofuwClose()
         break handler
       of -3:
         await response.mofuwSend(badRequest())
-        closeSocket(fd)
+        response.mofuwClose()
         break handler
       else: discard
 
@@ -481,7 +601,8 @@ proc updateTime(fd: AsyncFD): bool =
   return false
 
 proc mofuwInit(port, mBodySize: int;
-               tables: TableRef[string, string]) {.async.} =
+               tables: TableRef[string, string],
+               ctx: SslCtx = nil) {.async.} =
   let server = newServerSocket(port, defaultBacklog()).AsyncFD
   maxBodySize = mBodySize
   cacheTables = tables
@@ -511,15 +632,6 @@ proc run(port, maxBodySize: int;
 
   callback = cb
   waitFor mofuwInit(port, maxBodySize, tables)
-
-proc setCallback*(cb: Callback) =
-  callback = cb
-
-proc setPort*(port: int) =
-  serverPort = port
-
-proc setMaxBodySize*(port: int) =
-  serverPort = port
 
 proc mofuwRun*(port: int = 8080,
                maxBodySize: int = defaultMaxBodySize) =
@@ -555,6 +667,25 @@ proc mofuwRun*(cb: Callback,
     spawn run(port, maxBodySize, cb, cacheTables)
 
   sync()
+
+proc mofuwRunWithSSL*(cb: Callback,
+                      port: int = 4443,
+                      maxBodySize: int = defaultMaxBodySize,
+                      sslVerify = true) =
+  if sslVerify: mofuwSSLInit(CVerifyPeer)
+  else: mofuwSSLInit(CVerifyNone)
+  mofuwRun(cb, port, maxBodySize)
+
+proc mofuwRunWithSSL*(port: int = 4443,
+                      maxBodySize: int = defaultMaxBodySize,
+                      sslVerify = true) =
+  if sslVerify: mofuwSSLInit(CVerifyPeer)
+  else: mofuwSSLInit(CVerifyNone)
+  mofuwRun(port, maxBodySize)
+
+#################
+# mofuw's macro #
+#################
 
 macro mofuwHandler*(body: untyped): untyped =
   result = newStmtList()
