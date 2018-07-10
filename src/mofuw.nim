@@ -279,18 +279,28 @@ proc hash(str: string): Hash =
   result = !$h
 
 template mofuwClose(res: mofuwRes) =
-  try:
-    closeSocket(res.fd)
-  except:
-    # TODO send error logging
-    discard
-  if unlikely res.isSSL:
-    discard res.sslHandle.SSLShutdown()
-    res.sslHandle.SSLFree()
+  when defined ssl:
+    try:
+      closeSocket(res.fd)
+    except:
+      # TODO send error logging
+      discard
+    if unlikely res.isSSL:
+      discard res.sslHandle.SSLShutdown()
+      res.sslHandle.SSLFree()
+  else:
+    try:
+      closeSocket(res.fd)
+    except:
+      # TODO send error logging
+      discard
 
-proc mofuwRecvInto(res: mofuwRes, buf: pointer, bufLen: int): untyped =
-  if res.isSSL:
-    asyncSSLrecv(res, cast[ptr char](buf), bufLen)
+template mofuwRecvInto(res: mofuwRes, buf: pointer, bufLen: int): untyped =
+  when defined ssl:
+    if res.isSSL:
+      asyncSSLrecv(res, cast[ptr char](buf), bufLen)
+    else:
+      recvInto(res.fd, buf, bufLen)
   else:
     recvInto(res.fd, buf, bufLen)
 
@@ -300,14 +310,20 @@ proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
   # try send because raise exception.
   # buffer not protect, but
   # mofuwReq have buffer, so this is safe.(?)
-  if unlikely res.isSSL:
-    proc sslSend(fd: AsyncFD): bool {.closure.} =
-      # TODO: check return and error.
-      let sended = SSLWrite(res.sslHandle, addr buf[0], buf.len)
-      result = true
+  when defined ssl:
+    if unlikely res.isSSL:
+      proc sslSend(fd: AsyncFD): bool {.closure.} =
+        # TODO: check return and error.
+        let sended = SSLWrite(res.sslHandle, addr buf[0], buf.len)
+        result = true
 
-    addWrite(res.fd, sslSend)
-    discard
+      addWrite(res.fd, sslSend)
+      discard
+    else:
+      let fut = send(res.fd, addr(buf[0]), buf.len)
+      yield fut
+      if fut.failed:
+        res.mofuwClose()
   else:
     let fut = send(res.fd, addr(buf[0]), buf.len)
     yield fut
@@ -420,11 +436,14 @@ proc handler(fd: AsyncFD, ip: string) {.async.} =
   var
     request = mofuwReq(buf: "", mhr: MPHTTPReq())
     response =
-      if unlikely(not sslCtx.isNil):
-        let res = mofuwRes(fd: fd, isSSL: true, sslCtx: sslCtx)
-        toSSLSocket(res)
-        res
-      else: mofuwRes(fd: fd, isSSL: false)
+      when defined ssl:
+        if unlikely(not sslCtx.isNil):
+          let res = mofuwRes(fd: fd, isSSL: true, sslCtx: sslCtx)
+          toSSLSocket(res)
+          res
+        else: mofuwRes(fd: fd, isSSL: false)
+      else:
+        mofuwRes(fd: fd)
     r: int
     buf: array[bufSize, char]
     bigBuf: array[bufSize*2, char]
@@ -668,20 +687,21 @@ proc mofuwRun*(cb: Callback,
 
   sync()
 
-proc mofuwRunWithSSL*(cb: Callback,
-                      port: int = 4443,
-                      maxBodySize: int = defaultMaxBodySize,
-                      sslVerify = true) =
-  if sslVerify: mofuwSSLInit(CVerifyPeer)
-  else: mofuwSSLInit(CVerifyNone)
-  mofuwRun(cb, port, maxBodySize)
+when defined ssl:
+  proc mofuwRunWithSSL*(cb: Callback,
+                        port: int = 4443,
+                        maxBodySize: int = defaultMaxBodySize,
+                        sslVerify = true) =
+    if sslVerify: mofuwSSLInit(CVerifyPeer)
+    else: mofuwSSLInit(CVerifyNone)
+    mofuwRun(cb, port, maxBodySize)
 
-proc mofuwRunWithSSL*(port: int = 4443,
-                      maxBodySize: int = defaultMaxBodySize,
-                      sslVerify = true) =
-  if sslVerify: mofuwSSLInit(CVerifyPeer)
-  else: mofuwSSLInit(CVerifyNone)
-  mofuwRun(port, maxBodySize)
+  proc mofuwRunWithSSL*(port: int = 4443,
+                        maxBodySize: int = defaultMaxBodySize,
+                        sslVerify = true) =
+    if sslVerify: mofuwSSLInit(CVerifyPeer)
+    else: mofuwSSLInit(CVerifyNone)
+    mofuwRun(port, maxBodySize)
 
 #################
 # mofuw's macro #
