@@ -21,6 +21,7 @@ mofuw places emphasis on compatibility between usability and performance.
 - low used memory
 - Asynchronous I/O
 - builtin routing
+- support static file serving
 - support SSL
 - support HTTP pipeline / HTTP Streaming
 - support WebSocket
