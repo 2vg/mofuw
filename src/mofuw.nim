@@ -13,6 +13,7 @@ import
   openssl,
   strutils,
   asyncfile,
+  mimetypes,
   threadpool,
   asyncdispatch,
   nativesockets
@@ -707,6 +708,76 @@ when defined ssl:
 # mofuw's macro #
 #################
 
+proc fileResp(res: mofuwRes, filePath, file: string) {.async.}=
+  let (_, _, ext) = splitFile(filePath)
+
+  if ext == "":
+    await res.mofuwSend(makeResp(
+      HTTP200,
+      "text/plain",
+      file
+    ))
+  else:
+    let mime = newMimetypes()
+
+    await res.mofuwSend(makeResp(
+      HTTP200,
+      mime.getMimetype(ext[1 .. ^1], default = "application/octet-stream"),
+      file
+    ))
+
+proc staticServe*(req: mofuwReq, res: mofuwRes, rootPath: string): Future[bool] {.async.} =
+  var
+    state = 0
+    reqPath = getPath(req)
+    filePath = rootPath
+
+  for k, v in reqPath:
+    if v == '.':
+      if reqPath[k+1] == '.':
+        await res.mofuwSend(badRequest())
+        return true
+
+  if filePath[^1] != '/':
+    filePath.add("/")
+    filePath.add(reqPath[state .. ^1])
+  else:
+    filePath.add(reqPath[state .. ^1])
+
+  if filePath[^1] != '/':
+    if existsDir(filePath):
+      # Since the Host header should always exist,
+      # Nil check is not done here
+      let host = getHeader(req, "Host")
+
+      reqPath.add("/")
+
+      await res.mofuwSend(redirectTo(
+        "http://" / host / reqPath
+      ))
+
+      return true
+    if fileExists(filePath):
+      let
+        f = openAsync(filePath, fmRead)
+        file = await f.readAll()
+      close(f)
+      await res.fileResp(filePath, file)
+      return true
+    else:
+      return false
+  else:
+    filePath.add("index.html")
+    if fileExists(filePath):
+      let
+        f = openAsync(filePath, fmRead)
+        file = await f.readAll()
+      close(f)
+      await res.fileResp(filePath, file)
+      return true
+    else:
+      return false
+
 macro mofuwHandler*(body: untyped): untyped =
   result = newStmtList()
 
@@ -742,6 +813,8 @@ macro mofuwLambda(body: untyped): untyped =
   result.add(lam)
 
 macro routes*(body: untyped): untyped =
+  var staticPath = ""
+
   result = newStmtList()
   result.add(parseStmt("""
     let mofuwRouter = newRouter[proc(req: mofuwReq, res: mofuwRes): Future[void]]()
@@ -763,6 +836,11 @@ macro routes*(body: untyped): untyped =
           newLit(pathName)
         )
       )
+    of nnkCall:
+      let call = ($body[i][0]).normalize.toLowerAscii()
+      let path = $body[i][1]
+      if call == "serve":
+        staticPath.add(path)
     else:
       discard
 
@@ -779,6 +857,13 @@ macro routes*(body: untyped): untyped =
     """
   )
 
+  let staticRoutes =
+    if staticPath != "":
+      parseStmt(
+        "if not (await staticServe(req, res, \"" & staticPath & "\")): await res.mofuwSend(notFound())")
+    else:
+      parseStmt("await res.mofuwSend(notFound())")
+
   # if r.status == routingFailure:
   #   await res.mofuwSned(notFound())
   # else:
@@ -794,13 +879,7 @@ macro routes*(body: untyped): untyped =
           ident"routingFailure"
         ),
         newStmtList().add(
-          newNimNode(nnkCommand).add(
-            ident"await",
-            newCall(
-              newDotExpr(ident"res", ident"mofuwSend"),
-              newCall("notFound")
-            )
-          )
+          staticRoutes
         )
       ),
       newNimNode(nnkElse).add(
