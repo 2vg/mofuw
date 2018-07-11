@@ -47,7 +47,6 @@ export
 
 type
   mofuwReq* = ref object
-    client*: AsyncSocket
     mhr: MPHTTPReq
     mc: MPChunk
     ip*: string
@@ -140,6 +139,7 @@ proc newServerSocket(port: int = 8080, backlog: int = 128): SocketHandle =
   return server.getFd()
 
 when defined ssl:
+  # Let'sEncrypt's default cipher
   const strongCipher = 
     "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256" &
     ":ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384" &
