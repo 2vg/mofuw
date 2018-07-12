@@ -18,6 +18,11 @@ else:
     from posix import Pid
     const TCP_FASTOPEN = 23.cint
 
+when defined ssl:
+  import os
+  export openssl
+  export net.SslCVerifyMode
+
 #[
   Type define
 ]#
@@ -133,7 +138,7 @@ when defined ssl:
   var sslCipher {.global.}: string
   var sslCert {.global.}: string
   var sslKey {.global.}: string
-  var sslCtx {.global.}: SslCtx
+  var sslCtx* {.global.}: SslCtx
 
   SSL_library_init()
 
@@ -190,12 +195,12 @@ when defined ssl:
   # ##
   # normal fd to sslFD and accept
   # ##
-  proc toSSLSocket(res: mofuwRes) =
+  proc toSSLSocket*(res: mofuwRes) =
     res.sslHandle = SSLNew(res.sslCtx)
     discard SSL_set_fd(res.sslHandle, res.fd.SocketHandle)
     discard SSL_accept(res.sslHandle)
 
-  proc asyncSSLRecv(res: mofuwRes, buf: ptr char, bufLen: int): Future[int] =
+  proc asyncSSLRecv*(res: mofuwRes, buf: ptr char, bufLen: int): Future[int] =
     var retFuture = newFuture[int]("asyncSSLRecv")
     proc cb(fd: AsyncFD): bool =
       result = true
@@ -207,11 +212,11 @@ when defined ssl:
     addRead(res.fd, cb)
     return retFuture
 
-  proc asyncSSLSend(res: mofuwRes, buf: ptr char, bufLen: int): Future[int] =
+  proc asyncSSLSend*(res: mofuwRes, buf: ptr char, bufLen: int): Future[int] =
     var retFuture = newFuture[int]("asyncSSLSend")
     proc cb(fd: AsyncFD): bool =
       result = true
-      let rcv = SSL_send(res.sslHandle, buf, bufLen.cint)
+      let rcv = SSL_write(res.sslHandle, buf, bufLen.cint)
       if rcv <= 0:
         retFuture.complete(0)
       else:
