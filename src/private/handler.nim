@@ -124,11 +124,9 @@ proc handler*(fd: AsyncFD, ip: string) {.async.} =
             request.buf.delete(0, request.bodyStart - 1)
             remainingBufferSize = request.buf.len
           else:
+            asyncCheck response.mofuwWrite
             request.buf.setLen(0)
             break
-
-        await response.mofuwWrite
-        response.resp.setLen(0)
 
       of continueReq: continue
       of bodyLarge:

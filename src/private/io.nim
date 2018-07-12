@@ -49,15 +49,22 @@ proc mofuwWrite*(res: mofuwRes) {.async.} =
       yield fut
       if fut.failed:
         res.mofuwClose()
+      res.resp.setLen(0)
       return
 
   let fut = send(res.fd, addr(buf[0]), buf.len)
   yield fut
   if fut.failed:
     res.mofuwClose()
+  res.resp.setLen(0)
 
 proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
-  res.resp.add(body)
+  var b: string
+  b.shallowcopy(body)
+
+  let ol = res.resp.len
+  res.resp.setLen(ol+body.len)
+  copyMem(addr res.resp[ol], addr b[0], body.len)
 
 template mofuwResp*(status, mime, body: string): typed =
   asyncCheck res.mofuwSend(makeResp(
