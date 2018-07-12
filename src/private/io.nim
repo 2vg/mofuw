@@ -47,7 +47,7 @@ proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
   # mofuwReq have buffer, so this is safe.(?)
   when defined ssl:
     if unlikely res.isSSL:
-      let fut = asyncSSLSend(res.fd, addr(buf[0]), buf.len)
+      let fut = asyncSSLSend(res, addr(buf[0]), buf.len)
       yield fut
       if fut.failed:
         res.mofuwClose()
