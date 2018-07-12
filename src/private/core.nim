@@ -48,6 +48,21 @@ type
       sslHandle*: SslPtr
 
   MofuwCtx* = ref object
+    fd*: AsyncFD
+    mhr*: MPHTTPReq
+    mc*: MPChunk
+    ip*: string
+    buf*, resp*: string
+    respLen*: int
+    bodyStart*: int
+    bodyParams*, uriParams*, uriQuerys*: StringTableRef
+    # this is for big request
+    # TODO
+    tmp*: cstring
+    when defined ssl:
+      isSSL*: bool
+      sslCtx*: SslCtx
+      sslHandle*: SslPtr
 
   Callback* = proc(req: mofuwReq, res: mofuwRes): Future[void]
 
