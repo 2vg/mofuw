@@ -103,28 +103,21 @@ proc contentLengthCheck*(req: mofuwReq): int =
     # ##
     return -2
 
-macro recvCheck*(rcv: var int, res: mofuwRes, buf: pointer, bufLen: int): untyped =
-  quote do:
-    let fut = mofuwRecvInto(`res`, `buf`, `bufLen`)
-    yield fut
-    `rcv` = fut.read
-    if `rcv` == 0: `res`.mofuwClose(); return
-
 proc saveBuffer*(r: int, req: mofuwReq, buf: pointer) =
   let ol = req.buf.len
   req.buf.setLen(ol+r)
   copyMem(addr req.buf[ol], buf, r)
 
-macro mofuwCallback*(req: mofuwReq, res: mofuwRes): untyped =
-  quote do:
+template mofuwCallback*(req: mofuwReq, res: mofuwRes): untyped =
+  block:
     # TODO: timeout.
-    let fut = getCallback()(`req`, `res`)
+    let fut = getCallback()(req, res)
     yield fut
     if fut.failed:
       # TODO: error check.
-      let fut = `res`.badGateway()
+      let fut = res.badGateway()
       fut.callback = proc() =
-        `res`.mofuwClose()
+        res.mofuwClose()
       return
 
 proc notFound*(res: mofuwRes) {.async.} =

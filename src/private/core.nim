@@ -41,10 +41,13 @@ type
 
   mofuwRes* = ref object
     fd*: AsyncFD
+    resp*: string
     when defined ssl:
       isSSL*: bool
       sslCtx*: SslCtx
       sslHandle*: SslPtr
+
+  MofuwCtx* = ref object
 
   Callback* = proc(req: mofuwReq, res: mofuwRes): Future[void]
 

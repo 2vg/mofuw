@@ -33,14 +33,12 @@ template mofuwRecvInto*(res: mofuwRes, buf: pointer, bufLen: int): untyped =
   else:
     recvInto(res.fd, buf, bufLen)
 
-
-
 # ##
 # main send proc
 # ##
-proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
+proc mofuwWrite*(res: mofuwRes) {.async.} =
   var buf: string
-  buf.shallowcopy(body)
+  buf.shallowcopy(res.resp)
 
   # try send because raise exception.
   # buffer not protect, but
@@ -57,6 +55,9 @@ proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
   yield fut
   if fut.failed:
     res.mofuwClose()
+
+proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
+  res.resp.add(body)
 
 template mofuwResp*(status, mime, body: string): typed =
   asyncCheck res.mofuwSend(makeResp(

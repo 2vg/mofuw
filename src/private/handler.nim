@@ -15,7 +15,7 @@ proc handler*(fd: AsyncFD, ip: string) {.async.} =
         else:
           mofuwRes(fd: fd, isSSL: false)
       else:
-        mofuwRes(fd: fd)
+        mofuwRes(fd: fd, resp: "")
 
     r: int
     buf: array[bufSize, char]
@@ -23,8 +23,14 @@ proc handler*(fd: AsyncFD, ip: string) {.async.} =
 
   block handler:
     while true:
-      r.recvCheck(response, addr buf[0], bufSize)
+      r = await response.mofuwRecvInto(addr buf[0], bufSize)
+      if r == 0: response.mofuwClose(); return
       r.saveBuffer(request, addr buf[0])
+
+      # ##
+      # for progress req
+      # ##
+      if r == bufSize: continue
 
       case request.doubleCRLFCheck()
       of endReq:
@@ -36,7 +42,8 @@ proc handler*(fd: AsyncFD, ip: string) {.async.} =
           if hasContentLength != -2:
             if hasContentLength != -1:
               while not(request.buf.len - request.bodyStart >= hasContentLength):
-                r.recvCheck(response, addr bigBuf[0], bufSize*2)
+                r = await response.mofuwRecvInto(addr bigBuf[0], bufSize*2)
+                if r == 0: response.mofuwClose(); return
                 r.saveBuffer(request, addr buf[0])
             else:
               # TODO: Content-Length error.
@@ -104,22 +111,24 @@ proc handler*(fd: AsyncFD, ip: string) {.async.} =
         # our callback check.
         mofuwCallback(request, response)
 
-        # for pipeline ?
         request.buf.delete(0, request.bodyStart - 1)
-
         var remainingBufferSize = request.buf.len
 
         while true:
           if unlikely(isGETorHEAD and (remainingBufferSize > 0)):
-            if request.doubleCRLFCheck() != endReq: break
-
-            mofuwCallback(request, response)
+            if request.doubleCRLFCheck() != endReq:
+              await response.mofuwSend(badRequest())
+            else:
+              mofuwCallback(request, response)
 
             request.buf.delete(0, request.bodyStart - 1)
             remainingBufferSize = request.buf.len
           else:
             request.buf.setLen(0)
             break
+
+        await response.mofuwWrite
+        response.resp.setLen(0)
 
       of continueReq: continue
       of bodyLarge:
