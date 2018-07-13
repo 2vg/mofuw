@@ -114,8 +114,8 @@ or, you can use your own handler.
 import mofuw
 
 mofuwHandler:
-  if req.getMethod == "GET":
-    if req.getPath == "/":
+  if ctx.getMethod == "GET":
+    if ctx.getPath == "/":
       mofuwOK("Hello, World")
   else:
     res.mofuwSend(notFound())
@@ -144,6 +144,6 @@ I am looking for someone who develops mofuw together.
 Especially if there are people who can speed up and refactor it is the best!
 
 ## Special Thanks
-- [jester](https://github.com/dom96/jester) (using jester's pattern and utils, and study macro)
+- [jester](https://github.com/dom96/jester) (using jester's utils, and study macro)
 - [kubo39](https://github.com/kubo39) (awesome... backlog proc, fix somaxconn, and more. super thx!)
 - Thanks a lot dom96, and all Nimmers !
