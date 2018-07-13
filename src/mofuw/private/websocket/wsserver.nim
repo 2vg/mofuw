@@ -36,13 +36,14 @@
 ##
 ##   waitFor server.serve(Port(8080), cb)
 
-import asyncnet, asyncdispatch, strtabs, base64, std/sha1, strutils, sequtils, mofuw
+import asyncnet, asyncdispatch, strtabs, base64, std/sha1, strutils, sequtils
+import ../../../mofuw
 
 import hex
 
-import ./shared
+import ./wsshared
 
-proc verifyWebsocketRequest*(req: mofuwReq, res: mofuwRes, protocol = ""):
+proc verifyWebsocketRequest*(ctx: MofuwCtx, protocol = ""):
     Future[tuple[ws: AsyncWebSocket, error: string]] {.async.} =
 
   ## Verifies the request is a websocket request:
@@ -69,22 +70,22 @@ proc verifyWebsocketRequest*(req: mofuwReq, res: mofuwRes, protocol = ""):
   # if req.getHeader.hasKey("sec-websocket-extensions"):
     # TODO: transparently support extensions
 
-  if req.getHeader("Sec-WebSocket-Version") != "13":
+  if ctx.getHeader("Sec-WebSocket-Version") != "13":
     reterr "the only supported sec-websocket-version is 13"
 
-  if req.getHeader("Sec-WebSocket-Key") == "":
+  if ctx.getHeader("Sec-WebSocket-Key") == "":
     reterr "no sec-websocket-key provided"
 
   let isProtocolEmpty = protocol == ""
 
-  if req.getHeader("Sec-WebSocket-Protocol") != "":
+  if ctx.getHeader("Sec-WebSocket-Protocol") != "":
     if isProtocolEmpty:
       reterr "server does not support protocol negotation"
 
     block protocolCheck:
       let prot = protocol.toLowerAscii()
 
-      for it in req.getHeader("Sec-WebSocket-Protocol").split(", "):
+      for it in ctx.getHeader("Sec-WebSocket-Protocol").split(", "):
         if prot == it.strip.toLowerAscii():
           break protocolCheck
 
@@ -92,7 +93,7 @@ proc verifyWebsocketRequest*(req: mofuwReq, res: mofuwRes, protocol = ""):
   elif not isProtocolEmpty:
     reterr "no protocol advertised, but server demands `" & protocol & "`"
 
-  let sh = secureHash(req.getHeader("Sec-WebSocket-Key") &
+  let sh = secureHash(ctx.getHeader("Sec-WebSocket-Key") &
     "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
   let acceptKey = decodeHex($sh).encode
   var msg = "HTTP/1.1 101 Web Socket Protocol Handshake\c\L"
@@ -101,11 +102,12 @@ proc verifyWebsocketRequest*(req: mofuwReq, res: mofuwRes, protocol = ""):
   msg.add("Upgrade: websocket\c\L")
   if not isProtocolEmpty: msg.add("Sec-Websocket-Protocol: " & protocol & "\c\L")
   msg.add "\c\L"
-  await res.mofuwSend(msg)
+  await ctx.mofuwSend(msg)
+  await ctx.mofuwWrite()
 
   new(result.ws)
   result.ws.kind = SocketKind.Server
-  result.ws.sock = newAsyncSocket(res.fd)
+  result.ws.sock = newAsyncSocket(ctx.fd)
   result.ws.protocol = protocol
 
   result.error = ""

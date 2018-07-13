@@ -28,25 +28,6 @@ when defined ssl:
 ]#
 
 type
-  mofuwReq* = ref object
-    mhr*: MPHTTPReq
-    mc*: MPChunk
-    ip*: string
-    buf*: string
-    bodyStart*: int
-    bodyParams*, uriParams*, uriQuerys*: StringTableRef
-    # this is for big request
-    # TODO
-    tmp*: cstring
-
-  mofuwRes* = ref object
-    fd*: AsyncFD
-    resp*: string
-    when defined ssl:
-      isSSL*: bool
-      sslCtx*: SslCtx
-      sslHandle*: SslPtr
-
   MofuwCtx* = ref object
     fd*: AsyncFD
     mhr*: MPHTTPReq
@@ -64,7 +45,7 @@ type
       sslCtx*: SslCtx
       sslHandle*: SslPtr
 
-  Callback* = proc(req: mofuwReq, res: mofuwRes): Future[void]
+  Callback* = proc(ctx: MofuwCtx): Future[void]
 
 #[
   default using value
@@ -213,34 +194,39 @@ when defined ssl:
   # ##
   # normal fd to sslFD and accept
   # ##
-  proc toSSLSocket*(res: mofuwRes) =
-    res.sslHandle = SSLNew(res.sslCtx)
-    discard SSL_set_fd(res.sslHandle, res.fd.SocketHandle)
-    discard SSL_accept(res.sslHandle)
+  proc toSSLSocket*(ctx: MofuwCtx) =
+    ctx.sslHandle = SSLNew(ctx.sslCtx)
+    discard SSL_set_fd(ctx.sslHandle, ctx.fd.SocketHandle)
+    discard SSL_accept(ctx.sslHandle)
 
-  proc asyncSSLRecv*(res: mofuwRes, buf: ptr char, bufLen: int): Future[int] =
+  proc asyncSSLRecv*(ctx: MofuwCtx, buf: ptr char, bufLen: int): Future[int] =
     var retFuture = newFuture[int]("asyncSSLRecv")
     proc cb(fd: AsyncFD): bool =
       result = true
-      let rcv = SSL_read(res.sslHandle, buf, bufLen.cint)
+      let rcv = SSL_read(ctx.sslHandle, buf, bufLen.cint)
       if rcv <= 0:
         retFuture.complete(0)
       else:
         retFuture.complete(rcv)
-    addRead(res.fd, cb)
+    addRead(ctx.fd, cb)
     return retFuture
 
-  proc asyncSSLSend*(res: mofuwRes, buf: ptr char, bufLen: int): Future[int] =
+  proc asyncSSLSend*(ctx: MofuwCtx, buf: ptr char, bufLen: int): Future[int] =
     var retFuture = newFuture[int]("asyncSSLSend")
     proc cb(fd: AsyncFD): bool =
       result = true
-      let rcv = SSL_write(res.sslHandle, buf, bufLen.cint)
+      let rcv = SSL_write(ctx.sslHandle, buf, bufLen.cint)
       if rcv <= 0:
         retFuture.complete(0)
       else:
         retFuture.complete(rcv)
-    addWrite(res.fd, cb)
+    addWrite(ctx.fd, cb)
     return retFuture
+
+  proc newMofuwCtxSSL*(fd: AsyncFD, ip: string, isSSL: bool, sslCtx: SslCtx): MofuwCtx =
+    result = MofuwCtx(fd, ip)
+    result.isSSL = isSSL
+    result.sslCtx = sslCtx
 
   proc setChiper*(ci: string) =
     sslCipher = ci
@@ -253,6 +239,15 @@ when defined ssl:
 
   proc mofuwSSLInit*(verify = CVerifyNone) =
     sslCtx = newSSLContext(verify)
+
+proc newMofuwCtx*(fd: AsyncFD, ip: string): MofuwCtx =
+  result = MofuwCtx(
+    fd: fd,
+    ip: ip,
+    buf: "",
+    resp: "",
+    mhr: MPHTTPReq()
+  )
 
 proc setCallback*(cb: Callback) =
   callback = cb
@@ -269,34 +264,34 @@ proc setMaxBodySize*(size: int) =
 proc getMaxBodySize*: int =
   maxBodySize
 
-proc getMethod*(req: mofuwReq): string {.inline.} =
-  result = getMethod(req.mhr)
+proc getMethod*(ctx: MofuwCtx): string {.inline.} =
+  result = getMethod(ctx.mhr)
 
-proc getPath*(req: mofuwReq): string {.inline.} =
-  result = getPath(req.mhr)
+proc getPath*(ctx: MofuwCtx): string {.inline.} =
+  result = getPath(ctx.mhr)
 
-proc getCookie*(req: mofuwReq): string {.inline.} =
-  result = getHeader(req.mhr, "Cookie")
+proc getCookie*(ctx: MofuwCtx): string {.inline.} =
+  result = getHeader(ctx.mhr, "Cookie")
 
-proc getHeader*(req: mofuwReq, name: string): string {.inline.} =
-  result = getHeader(req.mhr, name)
+proc getHeader*(ctx: MofuwCtx, name: string): string {.inline.} =
+  result = getHeader(ctx.mhr, name)
 
-proc toHttpHeaders*(req: mofuwReq): HttpHeaders {.inline.} =
-  result = req.mhr.toHttpHeaders()
+proc toHttpHeaders*(ctx: MofuwCtx): HttpHeaders {.inline.} =
+  result = ctx.mhr.toHttpHeaders()
 
-proc setParam*(req: mofuwReq, params: StringTableRef) {.inline.} =
-  req.uriParams = params
+proc setParam*(ctx: MofuwCtx, params: StringTableRef) {.inline.} =
+  ctx.uriParams = params
 
-proc setQuery*(req: mofuwReq, query: StringTableRef) {.inline.} =
-  req.uriQuerys = query
+proc setQuery*(ctx: MofuwCtx, query: StringTableRef) {.inline.} =
+  ctx.uriQuerys = query
 
-proc params*(req: mofuwReq, key: string): string =
-  if req.uriParams.isNil: return nil
-  req.uriParams.getOrDefault(key)
+proc params*(ctx: MofuwCtx, key: string): string =
+  if ctx.uriParams.isNil: return nil
+  ctx.uriParams.getOrDefault(key)
 
-proc query*(req: mofuwReq, key: string): string =
-  if req.uriQuerys.isNil: return nil
-  req.uriQuerys.getOrDefault(key)
+proc query*(ctx: MofuwCtx, key: string): string =
+  if ctx.uriQuerys.isNil: return nil
+  ctx.uriQuerys.getOrDefault(key)
 
 proc bodyParse*(query: string):StringTableRef {.inline.} =
   result = {:}.newStringTable
@@ -318,7 +313,7 @@ proc bodyParse*(query: string):StringTableRef {.inline.} =
 # req.body -> all body
 # req.body("user") -> get body query "user"
 # ##
-proc body*(req: mofuwReq, key: string = nil): string =
-  if key.isNil: return $req.buf[req.bodyStart .. ^1]
-  if req.bodyParams.isNil: req.bodyParams = req.body.bodyParse
-  req.bodyParams.getOrDefault(key)
+proc body*(ctx: MofuwCtx, key: string = nil): string =
+  if key.isNil: return $ctx.buf[ctx.bodyStart .. ^1]
+  if ctx.bodyParams.isNil: ctx.bodyParams = ctx.body.bodyParse
+  ctx.bodyParams.getOrDefault(key)

@@ -4,7 +4,7 @@ import asyncdispatch
 # ##
 # close socket template
 # ##
-template mofuwClose*(res: mofuwRes) =
+template mofuwClose*(ctx: MofuwCtx) =
   when defined ssl:
     try:
       closeSocket(res.fd)
@@ -16,7 +16,7 @@ template mofuwClose*(res: mofuwRes) =
       res.sslHandle.SSLFree()
   else:
     try:
-      closeSocket(res.fd)
+      closeSocket(ctx.fd)
     except:
       # TODO send error logging
       discard
@@ -24,50 +24,50 @@ template mofuwClose*(res: mofuwRes) =
 # ##
 # recv template
 # ##
-template mofuwRecvInto*(res: mofuwRes, buf: pointer, bufLen: int): untyped =
+template mofuwRecvInto*(ctx: MofuwCtx, buf: pointer, bufLen: int): untyped =
   when defined ssl:
-    if res.isSSL:
-      asyncSSLrecv(res, cast[ptr char](buf), bufLen)
+    if ctx.isSSL:
+      asyncSSLrecv(ctx, cast[ptr char](buf), bufLen)
     else:
-      recvInto(res.fd, buf, bufLen)
+      recvInto(ctx.fd, buf, bufLen)
   else:
-    recvInto(res.fd, buf, bufLen)
+    recvInto(ctx.fd, buf, bufLen)
 
 # ##
 # main send proc
 # ##
-proc mofuwWrite*(res: mofuwRes) {.async.} =
+proc mofuwWrite*(ctx: MofuwCtx) {.async.} =
   var buf: string
-  buf.shallowcopy(res.resp)
+  buf.shallowcopy(ctx.resp)
 
   # try send because raise exception.
   # buffer not protect, but
   # mofuwReq have buffer, so this is safe.(?)
   when defined ssl:
-    if unlikely res.isSSL:
-      let fut = asyncSSLSend(res, addr(buf[0]), buf.len)
+    if unlikely ctx.isSSL:
+      let fut = asyncSSLSend(ctx, addr(buf[0]), buf.len)
       yield fut
       if fut.failed:
-        res.mofuwClose()
-      res.resp.setLen(0)
+        ctx.mofuwClose()
+      ctx.resp.setLen(0)
       return
 
-  let fut = send(res.fd, addr(buf[0]), buf.len)
+  let fut = send(ctx.fd, addr(buf[0]), buf.len)
   yield fut
   if fut.failed:
-    res.mofuwClose()
-  res.resp.setLen(0)
+    ctx.mofuwClose()
+  ctx.resp.setLen(0)
 
-proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
+proc mofuwSend*(ctx: MofuwCtx, body: string) {.async.} =
   var b: string
   b.shallowcopy(body)
 
-  let ol = res.resp.len
-  res.resp.setLen(ol+body.len)
-  copyMem(addr res.resp[ol], addr b[0], body.len)
+  let ol = ctx.resp.len
+  ctx.resp.setLen(ol+body.len)
+  copyMem(addr ctx.resp[ol], addr b[0], body.len)
 
 template mofuwResp*(status, mime, body: string): typed =
-  asyncCheck res.mofuwSend(makeResp(
+  asyncCheck ctx.mofuwSend(makeResp(
     status,
     mime,
     body))

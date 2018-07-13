@@ -12,31 +12,31 @@ type
 # ##
 # return ReqState
 # ##
-proc doubleCRLFCheck*(req: mofuwReq): ReqState =
+proc doubleCRLFCheck*(ctx: MofuwCtx): ReqState =
   # ##
   # parse request
   # ##
-  let bodyStart = req.mhr.mpParseRequest(addr req.buf[0], req.buf.len)
+  let bodyStart = ctx.mhr.mpParseRequest(addr ctx.buf[0], ctx.buf.len)
 
   # ##
   # found HTTP Method, return
   # not found, 0 length string
   # ##
   let hMethod =
-    if not req.mhr.httpMethod.isNil: req.getMethod
+    if not ctx.mhr.httpMethod.isNil: ctx.getMethod
     else: ""
 
   if likely(hMethod == "GET" or hMethod == "HEAD"):
     # ##
     # check \r\l\r\l
     # ##
-    if req.buf[^1] == '\l' and req.buf[^2] == '\r' and
-       req.buf[^3] == '\l' and req.buf[^4] == '\r':
+    if ctx.buf[^1] == '\l' and ctx.buf[^2] == '\r' and
+       ctx.buf[^3] == '\l' and ctx.buf[^4] == '\r':
       # ##
       # if not bodyStart > 0, request is invalid.
       # ##
       if likely(bodyStart != -1):
-        req.bodyStart = bodyStart
+        ctx.bodyStart = bodyStart
         return endReq
       else:
         return badReq
@@ -53,11 +53,11 @@ proc doubleCRLFCheck*(req: mofuwReq): ReqState =
       # ##
       # very slow \r\l\r\l check
       # ##
-      for i, ch in req.buf:
+      for i, ch in ctx.buf:
         if ch == '\r':
-          if req.buf.lenCheck(i+1) == '\l' and
-             req.buf.lenCheck(i+2) == '\r' and
-             req.buf.lenCheck(i+3) == '\l':
+          if ctx.buf.lenCheck(i+1) == '\l' and
+             ctx.buf.lenCheck(i+2) == '\r' and
+             ctx.buf.lenCheck(i+3) == '\l':
             # ##
             # Even if it ends with \r\l\r\l,
             # it is an illegal request because the method is empty
@@ -73,9 +73,9 @@ proc doubleCRLFCheck*(req: mofuwReq): ReqState =
       return continueReq
 
     # ##
-    # req.buf.len - bodyStart = request body size
+    # ctx.buf.len - bodyStart = request body size
     # ##
-    if unlikely(req.buf.len - bodyStart > getMaxBodySize()):
+    if unlikely(ctx.buf.len - bodyStart > getMaxBodySize()):
       return bodyLarge
     else:
       # ##
@@ -84,13 +84,13 @@ proc doubleCRLFCheck*(req: mofuwReq): ReqState =
       # whether the data of the body is insufficient is not to check here
       # ##
       if likely(bodyStart > 0):
-        req.bodyStart = bodyStart 
+        ctx.bodyStart = bodyStart 
         return endReq
       else:
         return continueReq
 
-proc contentLengthCheck*(req: mofuwReq): int =
-  let cLenHeader = req.getHeader("Content-Length")
+proc contentLengthCheck*(ctx: MofuwCtx): int =
+  let cLenHeader = ctx.getHeader("Content-Length")
 
   if cLenHeader != "":
     try:
@@ -103,43 +103,43 @@ proc contentLengthCheck*(req: mofuwReq): int =
     # ##
     return -2
 
-proc saveBuffer*(r: int, req: mofuwReq, buf: pointer) =
-  let ol = req.buf.len
-  req.buf.setLen(ol+r)
-  copyMem(addr req.buf[ol], buf, r)
+proc saveBuffer*(r: int, ctx: MofuwCtx, buf: pointer) =
+  let ol = ctx.buf.len
+  ctx.buf.setLen(ol+r)
+  copyMem(addr ctx.buf[ol], buf, r)
 
-template mofuwCallback*(req: mofuwReq, res: mofuwRes): untyped =
+template mofuwCallback*(ctx: MofuwCtx): untyped =
   block:
     # TODO: timeout.
-    let fut = getCallback()(req, res)
+    let fut = getCallback()(ctx)
     yield fut
     if fut.failed:
       # TODO: error check.
-      let fut = res.badGateway()
+      let fut = ctx.badGateway()
       fut.callback = proc() =
-        res.mofuwClose()
+        ctx.mofuwClose()
       return
 
-proc notFound*(res: mofuwRes) {.async.} =
-  await mofuwSend(res, notFound())
+proc notFound*(ctx: MofuwCtx) {.async.} =
+  await mofuwSend(ctx, notFound())
 
-proc badRequest*(res: mofuwRes) {.async.} =
-  await mofuwSend(res, badRequest())
+proc badRequest*(ctx: MofuwCtx) {.async.} =
+  await mofuwSend(ctx, badRequest())
 
-proc bodyTooLarge*(res: mofuwRes) {.async.} =
-  await mofuwSend(res, bodyTooLarge())
+proc bodyTooLarge*(ctx: MofuwCtx) {.async.} =
+  await mofuwSend(ctx, bodyTooLarge())
 
-proc badGateway*(res: mofuwRes) {.async.} =
-  await mofuwSend(res, makeResp(
+proc badGateway*(ctx: MofuwCtx) {.async.} =
+  await mofuwSend(ctx, makeResp(
     HTTP502,
     "text/plain",
     "502 Bad Gateway"))
 
-proc fileResp(res: mofuwRes, filePath, file: string) {.async.}=
+proc fileResp(ctx: MofuwCtx, filePath, file: string) {.async.}=
   let (_, _, ext) = splitFile(filePath)
 
   if ext == "":
-    await res.mofuwSend(makeResp(
+    await ctx.mofuwSend(makeResp(
       HTTP200,
       "text/plain",
       file
@@ -147,22 +147,22 @@ proc fileResp(res: mofuwRes, filePath, file: string) {.async.}=
   else:
     let mime = newMimetypes()
 
-    await res.mofuwSend(makeResp(
+    await ctx.mofuwSend(makeResp(
       HTTP200,
       mime.getMimetype(ext[1 .. ^1], default = "application/octet-stream"),
       file
     ))
 
-proc staticServe*(req: mofuwReq, res: mofuwRes, rootPath: string): Future[bool] {.async.} =
+proc staticServe*(ctx: MofuwCtx, rootPath: string): Future[bool] {.async.} =
   var
     state = 0
-    reqPath = getPath(req)
+    reqPath = getPath(ctx)
     filePath = rootPath
 
   for k, v in reqPath:
     if v == '.':
       if reqPath[k+1] == '.':
-        await res.mofuwSend(badRequest())
+        await ctx.mofuwSend(badRequest())
         return true
 
   if filePath[^1] != '/':
@@ -175,11 +175,11 @@ proc staticServe*(req: mofuwReq, res: mofuwRes, rootPath: string): Future[bool] 
     if existsDir(filePath):
       # Since the Host header should always exist,
       # Nil check is not done here
-      let host = getHeader(req, "Host")
+      let host = getHeader(ctx, "Host")
 
       reqPath.add("/")
 
-      await res.mofuwSend(redirectTo(
+      await ctx.mofuwSend(redirectTo(
         "http://" / host / reqPath
       ))
 
@@ -189,7 +189,7 @@ proc staticServe*(req: mofuwReq, res: mofuwRes, rootPath: string): Future[bool] 
         f = openAsync(filePath, fmRead)
         file = await f.readAll()
       close(f)
-      await res.fileResp(filePath, file)
+      await ctx.fileResp(filePath, file)
       return true
     else:
       return false
@@ -200,7 +200,7 @@ proc staticServe*(req: mofuwReq, res: mofuwRes, rootPath: string): Future[bool] 
         f = openAsync(filePath, fmRead)
         file = await f.readAll()
       close(f)
-      await res.fileResp(filePath, file)
+      await ctx.fileResp(filePath, file)
       return true
     else:
       return false

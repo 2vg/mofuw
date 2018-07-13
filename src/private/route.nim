@@ -8,8 +8,7 @@ macro mofuwHandler*(body: untyped): untyped =
     ident"mofuwHandler",newEmptyNode(),newEmptyNode(),
     newNimNode(nnkFormalParams).add(
       newEmptyNode(),
-      newIdentDefs(ident"req", ident"mofuwReq"),
-      newIdentDefs(ident"res", ident"mofuwRes")
+      newIdentDefs(ident"ctx", ident"MofuwCtx")
     ),
     newNimNode(nnkPragma).add(ident"async"),
     newEmptyNode(),
@@ -25,8 +24,7 @@ macro mofuwLambda(body: untyped): untyped =
     ident"mofuwHandler",newEmptyNode(),newEmptyNode(),
     newNimNode(nnkFormalParams).add(
       newEmptyNode(),
-      newIdentDefs(ident"req", ident"mofuwReq"),
-      newIdentDefs(ident"res", ident"mofuwRes")
+      newIdentDefs(ident"ctx", ident"MofuwCtx")
     ),
     newNimNode(nnkPragma).add(ident"async"),
     newEmptyNode(),
@@ -40,11 +38,11 @@ macro routes*(body: untyped): untyped =
 
   result = newStmtList()
   result.add(parseStmt("""
-    let mofuwRouter = newRouter[proc(req: mofuwReq, res: mofuwRes): Future[void]]()
+    let mofuwRouter = newRouter[proc(ctx: MofuwCtx): Future[void]]()
   """))
 
   # mofuwRouter.map(
-  #   proc(req: mofuwReq, res: mofuwRes) {.async.} =
+  #   proc(ctx: MofuwCtxs) {.async.} =
   #     body
   # , "METHOD", "PATH")
   for i in 0 ..< body.len:
@@ -73,26 +71,26 @@ macro routes*(body: untyped): untyped =
 
   handlerBody.add(
     parseStmt"""
-    var headers = req.toHttpHeaders()
+    var headers = ctx.toHttpHeaders()
     """,
     parseStmt"""
-    let r = mofuwRouter.route(req.getMethod, parseUri(req.getPath), headers)
+    let r = mofuwRouter.route(ctx.getMethod, parseUri(ctx.getPath), headers)
     """
   )
 
   let staticRoutes =
     if staticPath != "":
       parseStmt(
-        "if not (await staticServe(req, res, \"" & staticPath & "\")): await res.mofuwSend(notFound())")
+        "if not (await staticServe(ctx, \"" & staticPath & "\")): await ctx.mofuwSend(notFound())")
     else:
-      parseStmt("await res.mofuwSend(notFound())")
+      parseStmt("await ctx.mofuwSend(notFound())")
 
   # if r.status == routingFailure:
-  #   await res.mofuwSned(notFound())
+  #   await ctx.mofuwSned(notFound())
   # else:
   #   req.setParam(r.arguments.pathArgs)
   #   req.setQuery(r.arguments.queryArgs)
-  #   await r.handler(req, res)
+  #   await r.handler(req, ctx)
   handlerBody.add(
     newNimNode(nnkIfStmt).add(
       newNimNode(nnkElifBranch).add(
@@ -108,18 +106,18 @@ macro routes*(body: untyped): untyped =
       newNimNode(nnkElse).add(
         newStmtList(
           newCall(
-            newDotExpr(ident"req", ident"setParam"),
+            newDotExpr(ident"ctx", ident"setParam"),
             newDotExpr(newDotExpr(ident"r", ident"arguments"), ident"pathArgs")
           ),
           newCall(
-            newDotExpr(ident"req", ident"setQuery"),
+            newDotExpr(ident"ctx", ident"setQuery"),
             newDotExpr(newDotExpr(ident"r", ident"arguments"), ident"queryArgs")
           ),
           newNimNode(nnkCommand).add(
             ident"await",
             newCall(
               newDotExpr(ident"r", ident"handler"),
-              ident"req", ident"res"
+              ident"ctx"
             )
           )
         )
