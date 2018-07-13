@@ -5,7 +5,7 @@ import mofuparser, mofuhttputils
 
 proc handler*(fd: AsyncFD, ip: string) {.async.} =
   var
-    request = mofuwReq(buf: "", mhr: MPHTTPReq())
+    request = mofuwReq(buf: "", mhr: mofuparser.MPHTTPReq())
     response =
       when defined ssl:
         if unlikely(not sslCtx.isNil):
@@ -106,7 +106,7 @@ proc handler*(fd: AsyncFD, ip: string) {.async.} =
           # there is a possibility that
           # the pointer of the buffer has been changed by setLen.
           # So reparse the pointers up to \r\l\r\l.
-          discard mpParseRequest(addr request.buf[0], request.mhr)
+          discard request.mhr.mpParseRequest(addr request.buf[0], request.buf.len)
 
         # our callback check.
         mofuwCallback(request, response)

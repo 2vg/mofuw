@@ -16,7 +16,7 @@ proc doubleCRLFCheck*(req: mofuwReq): ReqState =
   # ##
   # parse request
   # ##
-  let bodyStart = mpParseRequest(addr req.buf[0], req.mhr)
+  let bodyStart = req.mhr.mpParseRequest(addr req.buf[0], req.buf.len)
 
   # ##
   # found HTTP Method, return
