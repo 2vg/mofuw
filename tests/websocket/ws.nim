@@ -1,7 +1,7 @@
-import mofuw/websocket, mofuw
+import ../../src/mofuw/websocket, ../../src/mofuw
 
 mofuwHandler:
-  let (ws, error) = await verifyWebsocketRequest(req, res)
+  let (ws, error) = await verifyWebsocketRequest(ctx)
 
   if ws.isNil:
     echo "WS negotiation failed: ", error

@@ -5,9 +5,9 @@ routes:
     mofuwOK("Hello, World!")
 
   get "/user/{id}":
-    mofuwOK("Hello, " & req.params("id") & "!")
+    mofuwOK("Hello, " & ctx.params("id") & "!")
 
   post "/create":
-    mofuwOK("created: " & req.body)
+    mofuwOK("created: " & ctx.body)
 
 mofuwRun(8080)
