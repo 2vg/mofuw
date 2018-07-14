@@ -18,17 +18,6 @@ else:
     from posix import Pid
     const TCP_FASTOPEN = 23.cint
 
-when defined ssl:
-  import os
-  export openssl
-  export net.SslCVerifyMode
-
-  when not declared(SSL_set_SSL_CTX):
-    proc SSL_set_SSL_CTX*(ssl: SslPtr, ctx: SslCtx): SslCtx
-      {.cdecl, dynlib: DLLSSLName, importc.}
-
-  var sslCtxTable {.global.}: CritBitTree[SslCtx]
-
 #[
   Type define
 ]#
@@ -79,6 +68,17 @@ when defined vhost:
 
   proc getCallBackTable*: CritBitTree[Callback] =
     return callBackTable
+
+when defined ssl:
+  import os
+  export openssl
+  export net.SslCVerifyMode
+
+  when not declared(SSL_set_SSL_CTX):
+    proc SSL_set_SSL_CTX*(ssl: SslPtr, ctx: SslCtx): SslCtx
+      {.cdecl, dynlib: DLLSSLName, importc.}
+
+  var sslCtxTable* {.global, threadvar.}: CritBitTree[SslCtx]
 
 #[
   Proc section
@@ -183,7 +183,7 @@ when defined ssl:
 
     if keyFile != "":
       if SSL_CTX_use_PrivateKey_file(ctx, keyFile,
-                                    SSL_FILETYPE_PEM) != 1:
+                                     SSL_FILETYPE_PEM) != 1:
         raiseSSLError()
 
       if SSL_CTX_check_private_key(ctx) != 1:
@@ -195,7 +195,7 @@ when defined ssl:
   # ##
   proc newSSLContext(cert, key: string, mode = CVerifyNone): SslCtx =
     var newCtx: SslCtx
-    newCTX = SSL_CTX_new(TLS_method())
+    newCTX = SSL_CTX_new(TLS_server_method())
 
     let cipher = 
       if sslCipher != nil or sslCipher != "": sslCipher
@@ -229,7 +229,9 @@ when defined ssl:
   # normal fd to sslFD and accept
   # ##
   proc toSSLSocket*(ctx: MofuwCtx) =
-    ctx.sslHandle = SSLNew(sslCtx)
+    ctx.sslCtx = sslCtx
+    discard ctx.sslCtx.SSL_CTX_set_tlsext_servername_callback(serverNameCallback)
+    ctx.sslHandle = SSLNew(ctx.sslCtx)
     discard SSL_set_fd(ctx.sslHandle, ctx.fd.SocketHandle)
     discard SSL_accept(ctx.sslHandle)
 
@@ -275,9 +277,7 @@ when defined ssl:
     if sslKey.isNil: sslKey = key
     if sslCtx.isNil: sslCtx = ctx
 
-    discard ctx.SSL_CTX_set_tlsext_servername_callback(serverNameCallback)
-
-  proc setChiper*(ci: string) =
+  proc setCipher*(ci: string) =
     sslCipher = ci
 
   proc mofuwSSLInit*(verify: SslCVerifyMode) =

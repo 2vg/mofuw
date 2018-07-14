@@ -165,7 +165,7 @@ when defined vhost:
         discard
 
     var handler = quote do:
-      let header = ctx.getHeader("")
+      let header = ctx.getHeader("Host")
       let table = getCallBackTable()
       if table.hasKey(header):
         await table[header](ctx)

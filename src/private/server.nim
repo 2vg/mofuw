@@ -28,7 +28,7 @@ proc serverLoop(server: AsyncFD) {.async.} =
 
 when defined(vhost):
   proc runServerVhost(port, maxBodySize: int;
-               cb: Callback, tbl: CritBitTree[Callback]) {.thread.} =
+                      cb: Callback, tbl: CritBitTree[Callback]) {.thread.} =
 
     let server = newServerSocket(port).AsyncFD
     setMaxBodySize(maxBodySize)
@@ -39,9 +39,18 @@ when defined(vhost):
     setCallBackTable(tbl)
 
     waitFor serverLoop(server)
+
+  when defined ssl:
+    proc runServerVhostSSL(port, maxBodySize: int;
+                        cb: Callback,
+                        tbl: CritBitTree[Callback],
+                        sslCtxTbl: CritBitTree[SslCtx]) {.thread.} =
+      sslCtxTable = sslCtxTbl
+      runServerVhost(port, maxBodySize, cb, tbl)
+
 else:
   proc runServer(port, maxBodySize: int;
-               cb: Callback) {.thread.} =
+                 cb: Callback) {.thread.} =
 
     let server = newServerSocket(port).AsyncFD
     setMaxBodySize(maxBodySize)
@@ -51,6 +60,13 @@ else:
     setCallback(cb)
 
     waitFor serverLoop(server)
+
+  when defined ssl:
+    proc runServerSSL(port, maxBodySize: int;
+                      cb: Callback,
+                      sslCtxTbl: CritBitTree[SslCtx]) {.thread.} =
+      sslCtxTable = sslCtxTbl
+      runServer(port, maxBodySize, cb)
 
 proc mofuwRun*(cb: Callback,
                port: int = 8080,
@@ -64,9 +80,15 @@ proc mofuwRun*(cb: Callback,
 
   for i in 0 ..< countCPUs():
     when defined(vhost):
-      spawn runServerVhost(port, maxBodySize, cb, getCallBackTable())
+      when defined ssl:
+        spawn runServerVhostSSL(port, maxBodySize, cb, getCallBackTable(), sslCtxTable)
+      else:
+        spawn runServerVhost(port, maxBodySize, cb, getCallBackTable())
     else:
-      spawn runServer(port, maxBodySize, cb)
+      when defined ssl:
+        spawn runServerSSL(port, maxBodySize, cb, sslCtxTable)
+      else:
+        spawn runServer(port, maxBodySize, cb)
   sync()
 
 proc mofuwRun*(port: int = 8080,
@@ -79,12 +101,12 @@ when defined ssl:
   proc mofuwRunWithSSL*(cb: Callback,
                         port: int = 4443,
                         maxBodySize: int = defaultMaxBodySize,
-                        sslVerify = true) =
+                        sslVerify = false) =
     if sslVerify: mofuwSSLInit(CVerifyPeer)
     else: mofuwSSLInit(CVerifyNone)
     mofuwRun(cb, port, maxBodySize)
 
   proc mofuwRunWithSSL*(port: int = 4443,
                         maxBodySize: int = defaultMaxBodySize,
-                        sslVerify = true) =
+                        sslVerify = false) =
     mofuwRunWithSSL(getCallback(), port, maxBodySize, sslVerify)

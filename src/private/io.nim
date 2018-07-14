@@ -13,7 +13,7 @@ template mofuwClose*(ctx: MofuwCtx) =
       discard
     if unlikely ctx.isSSL:
       discard ctx.sslHandle.SSLShutdown()
-      ctx .sslHandle.SSLFree()
+      ctx.sslHandle.SSLFree()
   else:
     try:
       closeSocket(ctx.fd)
