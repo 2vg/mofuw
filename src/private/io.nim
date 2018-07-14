@@ -7,13 +7,13 @@ import asyncdispatch
 template mofuwClose*(ctx: MofuwCtx) =
   when defined ssl:
     try:
-      closeSocket(res.fd)
+      closeSocket(ctx.fd)
     except:
       # TODO send error logging
       discard
-    if unlikely res.isSSL:
-      discard res.sslHandle.SSLShutdown()
-      res.sslHandle.SSLFree()
+    if unlikely ctx.isSSL:
+      discard ctx.sslHandle.SSLShutdown()
+      ctx .sslHandle.SSLFree()
   else:
     try:
       closeSocket(ctx.fd)
