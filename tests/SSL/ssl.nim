@@ -1,7 +1,8 @@
 import ../../src/mofuw
 
-setCert("cert.pem")
-setKey("key.pem")
+addCertAndKey(
+  cert = "cert.pem",
+  key = "key.pem")
 
 routes:
   get "/":
