@@ -89,7 +89,9 @@ proc mofuwRun*(cb: Callback,
         spawn runServerSSL(port, maxBodySize, cb, sslCtxTable)
       else:
         spawn runServer(port, maxBodySize, cb)
-  sync()
+
+  when not declared noSync:
+    sync()
 
 proc mofuwRun*(port: int = 8080,
                maxBodySize: int = defaultMaxBodySize) =
