@@ -37,20 +37,6 @@ proc run(port, maxBodySize: int;
   setCallback(cb)
   waitFor mofuwInit(port, maxBodySize)
 
-proc mofuwRun*(port: int = 8080,
-               maxBodySize: int = defaultMaxBodySize) =
-
-  if getCallback() == nil: raise newException(Exception, "callback is nil.")
-
-  #if isDebug.bool:
-  #  errorLogFile = openAsync("error.log")
-  #  accessLogFile = openAsync("access.log")
-
-  for i in 0 ..< countCPUs():
-    spawn run(port, maxBodySize, getCallback())
-
-  sync()
-
 proc mofuwRun*(cb: Callback,
                port: int = 8080,
                maxBodySize: int = defaultMaxBodySize) =
@@ -61,10 +47,14 @@ proc mofuwRun*(cb: Callback,
   #  errorLogFile = openAsync("error.log")
   #  accessLogFile = openAsync("access.log")
 
-  for i in 0 ..< countCPUs():
-    spawn run(port, maxBodySize, cb)
-
+  for i in 0 ..< countCPUs(): spawn run(port, maxBodySize, cb)
   sync()
+
+proc mofuwRun*(port: int = 8080,
+               maxBodySize: int = defaultMaxBodySize) =
+
+  if getCallback() == nil: raise newException(Exception, "callback is nil.")
+  mofuwRun(getCallback(), port, maxBodySize)
 
 when defined ssl:
   proc mofuwRunWithSSL*(cb: Callback,
@@ -78,6 +68,4 @@ when defined ssl:
   proc mofuwRunWithSSL*(port: int = 4443,
                         maxBodySize: int = defaultMaxBodySize,
                         sslVerify = true) =
-    if sslVerify: mofuwSSLInit(CVerifyPeer)
-    else: mofuwSSLInit(CVerifyNone)
-    mofuwRun(port, maxBodySize)
+    mofuwRunWithSSL(getCallback(), port, maxBodySize, sslVerify)
