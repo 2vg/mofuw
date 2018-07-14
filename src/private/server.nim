@@ -2,18 +2,13 @@ import core, handler
 import mofuhttputils
 import strtabs, openssl, threadpool, asyncdispatch
 
+when defined(vhost): import critbits
+
 proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
   return false
 
-proc mofuwInit(port, mBodySize: int;
-               ctx: SslCtx = nil) {.async.} =
-  let server = newServerSocket(port).AsyncFD
-  setMaxBodySize(mBodySize)
-  register(server)
-  updateServerTime()
-  addTimer(1000, false, updateTime)
-
+proc serverLoop(server: AsyncFD) {.async.} =
   var cantAccept = false
   while true:
     if unlikely cantAccept:
@@ -31,11 +26,31 @@ proc mofuwInit(port, mBodySize: int;
       # await sleepAsync(10)
       cantAccept = true
 
-proc run(port, maxBodySize: int;
-         cb: Callback) {.thread.} =
+when defined(vhost):
+  proc runServerVhost(port, maxBodySize: int;
+               cb: Callback, tbl: CritBitTree[Callback]) {.thread.} =
 
-  setCallback(cb)
-  waitFor mofuwInit(port, maxBodySize)
+    let server = newServerSocket(port).AsyncFD
+    setMaxBodySize(maxBodySize)
+    register(server)
+    updateServerTime()
+    addTimer(1000, false, updateTime)
+    setCallback(cb)
+    setCallBackTable(tbl)
+
+    waitFor serverLoop(server)
+else:
+  proc runServer(port, maxBodySize: int;
+               cb: Callback) {.thread.} =
+
+    let server = newServerSocket(port).AsyncFD
+    setMaxBodySize(maxBodySize)
+    register(server)
+    updateServerTime()
+    addTimer(1000, false, updateTime)
+    setCallback(cb)
+
+    waitFor serverLoop(server)
 
 proc mofuwRun*(cb: Callback,
                port: int = 8080,
@@ -47,7 +62,11 @@ proc mofuwRun*(cb: Callback,
   #  errorLogFile = openAsync("error.log")
   #  accessLogFile = openAsync("access.log")
 
-  for i in 0 ..< countCPUs(): spawn run(port, maxBodySize, cb)
+  for i in 0 ..< countCPUs():
+    when defined(vhost):
+      spawn runServerVhost(port, maxBodySize, cb, getCallBackTable())
+    else:
+      spawn runServer(port, maxBodySize, cb)
   sync()
 
 proc mofuwRun*(port: int = 8080,

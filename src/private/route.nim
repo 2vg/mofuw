@@ -135,7 +135,7 @@ macro routes*(body: untyped): untyped =
     """))
 
 when defined vhost:
-  macro vhost*(body: untyped): untyped =
+  macro vhosts*(body: untyped): untyped =
     result = newStmtList()
 
     for i in 0 ..< body.len:
@@ -143,22 +143,35 @@ when defined vhost:
       of nnkCommand:
         let callName = ($body[i][0]).normalize.toLowerAscii()
         let serverName = $body[i][1]
-        if callName != "Host": raise newException(Exception, "can't define except Host.")
+        if callName != "host": raise newException(Exception, "can't define except Host.")
 
-        result.add quote do:
-          registerCallback(`serverName`, proc(ctx: MofuwCtx): Future[Void] =
-            `body[i][2]`
-          )
+        let lam = newNimNode(nnkLambda).add(
+          newEmptyNode(),newEmptyNode(),newEmptyNode(),
+          newNimNode(nnkFormalParams).add(
+            newEmptyNode(),
+            newIdentDefs(ident"ctx", ident"MofuwCtx")
+          ),
+          newNimNode(nnkPragma).add(ident"async"),
+          newEmptyNode(),
+          body[i][2]
+        )
+
+        result.add(
+          newCall(
+            "registerCallBack",
+            ident(serverName).toStrLit,
+            lam))
       else:
         discard
 
     var handler = quote do:
       let header = ctx.getHeader("")
-      if callBackList.hasKey(header):
-        callBackList[header](ctx)
+      let table = getCallBackTable()
+      if table.hasKey(header):
+        await table[header](ctx)
       else:
-        for cb in callBackList.value:
-          cb(ctx)
+        for cb in table.values:
+          await cb(ctx)
 
     result.add(getAst(mofuwHandler(handler)))
 
