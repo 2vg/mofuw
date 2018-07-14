@@ -71,7 +71,7 @@ var maxBodySize {.threadvar.}: int
 when defined vhost:
   var callbackTable {.global, threadvar.}: CritBitTree[Callback]
 
-  proc registerCallback*(serverName, cb: Callback) =
+  proc registerCallback*(serverName: string, cb: Callback) =
     callbackTable[serverName] = cb
 
 #[
