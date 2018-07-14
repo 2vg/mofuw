@@ -125,8 +125,43 @@ macro routes*(body: untyped): untyped =
     )
   )
 
-  result.add(getAst(mofuwHandler(handlerBody)))
+  when defined vhost:
+    result.add(handlerBody)
+  else:
+    result.add(getAst(mofuwHandler(handlerBody)))
 
-  result.add(parseStmt("""
-    setCallback(mofuwHandler)
-  """))
+    result.add(parseStmt("""
+      setCallback(mofuwHandler)
+    """))
+
+when defined vhost:
+  macro vhost*(body: untyped): untyped =
+    result = newStmtList()
+
+    for i in 0 ..< body.len:
+      case body[i].kind
+      of nnkCommand:
+        let callName = ($body[i][0]).normalize.toLowerAscii()
+        let serverName = $body[i][1]
+        if callName != "Host": raise newException(Exception, "can't define except Host.")
+
+        result.add quote do:
+          registerCallback(`serverName`, proc(ctx: MofuwCtx): Future[Void] =
+            `body[i][2]`
+          )
+      else:
+        discard
+
+    var handler = quote do:
+      let header = ctx.getHeader("")
+      if callBackList.hasKey(header):
+        callBackList[header](ctx)
+      else:
+        for cb in callBackList.value:
+          cb(ctx)
+
+    result.add(getAst(mofuwHandler(handler)))
+
+    result.add(parseStmt("""
+      setCallback(mofuwHandler)
+    """))

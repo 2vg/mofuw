@@ -8,11 +8,11 @@ proc handler*(fd: AsyncFD, ip: string) {.async.} =
     ctx =
       when defined ssl:
         if unlikely(not sslCtx.isNil):
-          let c = newMofuwCtxSSL(fd, ip, true, sslCtx)
+          let c = newMofuwCtxSSL(fd, ip, true)
           toSSLSocket(c)
           c
         else:
-          newMofuwCtxSSL(fd, ip, true, nil)
+          newMofuwCtxSSL(fd, ip, true)
       else:
         newMofuwCtx(fd, ip)
 

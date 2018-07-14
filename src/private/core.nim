@@ -3,7 +3,7 @@
 ]#
 
 import
-  strtabs, parseutils, openssl, osproc, net, nativesockets, asyncdispatch
+  critbits, strtabs, parseutils, openssl, osproc, net, nativesockets, asyncdispatch
 
 import mofuhttputils, mofuparser
 
@@ -22,6 +22,12 @@ when defined ssl:
   import os
   export openssl
   export net.SslCVerifyMode
+
+  when not declared(SSL_set_SSL_CTX):
+    proc SSL_set_SSL_CTX*(ssl: SslPtr, ctx: SslCtx): SslCtx
+      {.cdecl, dynlib: DLLSSLName, importc.}
+
+  var sslCtxTable {.global.}: CritBitTree[SslCtx]
 
 #[
   Type define
@@ -61,6 +67,12 @@ const
 var callback {.threadvar.}: Callback
 var serverPort {.threadvar.}: int
 var maxBodySize {.threadvar.}: int
+
+when defined vhost:
+  var callbackTable {.global, threadvar.}: CritBitTree[Callback]
+
+  proc registerCallback*(serverName, cb: Callback) =
+    callbackTable[serverName] = cb
 
 #[
   Proc section
@@ -119,6 +131,15 @@ proc newServerSocket*(port: int = 8080): SocketHandle =
   server.listen(defaultBacklog().cint)
   return server.getFd()
 
+proc newMofuwCtx*(fd: AsyncFD, ip: string): MofuwCtx =
+  result = MofuwCtx(
+    fd: fd,
+    ip: ip,
+    buf: "",
+    resp: "",
+    mhr: MPHTTPReq()
+  )
+
 # ##
 # For SSL
 # ##
@@ -135,8 +156,7 @@ when defined ssl:
     ":AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:DES-CBC3-SHA:!DSS"
 
   var sslCipher {.global.}: string
-  var sslCert {.global.}: string
-  var sslKey {.global.}: string
+  var sslCert, sslKey {.global.}: string
   var sslCtx* {.global.}: SslCtx
 
   SSL_library_init()
@@ -167,7 +187,7 @@ when defined ssl:
   # From net module
   # Edited by @2vg
   # ##
-  proc newSSLContext(mode = CVerifyNone): SslCtx =
+  proc newSSLContext(cert, key: string, mode = CVerifyNone): SslCtx =
     var newCtx: SslCtx
     newCTX = SSL_CTX_new(TLS_method())
 
@@ -187,15 +207,23 @@ when defined ssl:
 
     discard newCTX.SSLCTXSetMode(SSL_MODE_AUTO_RETRY)
 
-    newCTX.loadCertificates(sslCert, sslKey)
+    newCTX.loadCertificates(cert, key)
 
     return newCtx
+
+  proc serverNameCallback(ssl: SslPtr, cb_id: int, arg: pointer): int {.cdecl.} =
+    if ssl.isNil: return SSL_TLSEXT_ERR_NOACK
+    let serverName = SSL_get_servername(ssl)
+    if sslCtxTable.hasKey($serverName):
+      let newCtx = sslCtxTable[$serverName]
+      discard ssl.SSL_set_SSL_CTX(newCtx)
+    return SSL_TLSEXT_ERR_OK
 
   # ##
   # normal fd to sslFD and accept
   # ##
   proc toSSLSocket*(ctx: MofuwCtx) =
-    ctx.sslHandle = SSLNew(ctx.sslCtx)
+    ctx.sslHandle = SSLNew(sslCtx)
     discard SSL_set_fd(ctx.sslHandle, ctx.fd.SocketHandle)
     discard SSL_accept(ctx.sslHandle)
 
@@ -223,31 +251,31 @@ when defined ssl:
     addWrite(ctx.fd, cb)
     return retFuture
 
-  proc newMofuwCtxSSL*(fd: AsyncFD, ip: string, isSSL: bool, sslCtx: SslCtx): MofuwCtx =
-    result = MofuwCtx(fd, ip)
+  proc newMofuwCtxSSL*(fd: AsyncFD, ip: string, isSSL: bool): MofuwCtx =
+    result = newMofuwCtx(fd, ip)
     result.isSSL = isSSL
-    result.sslCtx = sslCtx
+
+  proc addCertAndKey*(cert, key: string, serverName = "", verify = false) =
+    let ctx =
+      if verify: newSSLContext(cert, key, CVerifyPeer)
+      else: newSSLContext(cert, key)
+
+    if sslCtxTable.hasKey(serverName):
+      raise newException(Exception, "already have callback.")
+
+    sslCtxTable[serverName] = ctx
+
+    if sslCert.isNil: sslCert = cert
+    if sslKey.isNil: sslKey = key
+    if sslCtx.isNil: sslCtx = ctx
+
+    discard ctx.SSL_CTX_set_tlsext_servername_callback(serverNameCallback)
 
   proc setChiper*(ci: string) =
     sslCipher = ci
 
-  proc setCert*(cert: string) =
-    sslCert = cert
-
-  proc setKey*(key: string) =
-    sslKey = key
-
-  proc mofuwSSLInit*(verify = CVerifyNone) =
-    sslCtx = newSSLContext(verify)
-
-proc newMofuwCtx*(fd: AsyncFD, ip: string): MofuwCtx =
-  result = MofuwCtx(
-    fd: fd,
-    ip: ip,
-    buf: "",
-    resp: "",
-    mhr: MPHTTPReq()
-  )
+  proc mofuwSSLInit*(verify: SslCVerifyMode) =
+    sslCtx = newSSLContext(sslCert, sslKey, verify)
 
 proc setCallback*(cb: Callback) =
   callback = cb
