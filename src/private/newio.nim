@@ -1,4 +1,5 @@
 import ctx, ctxpool
+import mofuhttputils
 import asyncdispatch
 
 proc mofuwClose*(ctx: MofuwCtx) =
