@@ -1,6 +1,7 @@
 import core, io
 import mofuparser, mofuhttputils
 import os, macros, strutils, mimetypes, asyncdispatch, asyncfile
+import ../mofuw/middleware/etags
 
 type
   ReqState* = enum
@@ -141,7 +142,7 @@ proc fileResp(res: mofuwRes, filePath, file: string) {.async.}=
   if ext == "":
     await res.mofuwSend(makeResp(
       HTTP200,
-      "text/plain",
+      "text/plain" & (if etagEnabled : "\c\lEtag:" & filePath.getEtag else :"" ),
       file
     ))
   else:
@@ -149,7 +150,7 @@ proc fileResp(res: mofuwRes, filePath, file: string) {.async.}=
 
     await res.mofuwSend(makeResp(
       HTTP200,
-      mime.getMimetype(ext[1 .. ^1], default = "application/octet-stream"),
+      mime.getMimetype(ext[1 .. ^1], default = "application/octet-stream") & (if etagEnabled : "\c\lEtag:" & filePath.getEtag else :"" ),
       file
     ))
 
@@ -185,6 +186,14 @@ proc staticServe*(req: mofuwReq, res: mofuwRes, rootPath: string): Future[bool] 
 
       return true
     if fileExists(filePath):
+
+      # etag
+      if etagEnabled :
+        let etag = getHeader(req, "If-None-Match")
+        if not isModifiedEtagWithUpdate(filePath, etag) :
+          await mofuwSend(res, makeResp(HTTP304,"","") )
+          return true
+
       let
         f = openAsync(filePath, fmRead)
         file = await f.readAll()
@@ -196,6 +205,14 @@ proc staticServe*(req: mofuwReq, res: mofuwRes, rootPath: string): Future[bool] 
   else:
     filePath.add("index.html")
     if fileExists(filePath):
+
+      # etag
+      if etagEnabled :
+        let etag = getHeader(req, "If-None-Match")
+        if not isModifiedEtagWithUpdate(filePath, etag) :
+          await mofuwSend(res, makeResp(HTTP304,"","") )
+          return true
+
       let
         f = openAsync(filePath, fmRead)
         file = await f.readAll()
