@@ -28,19 +28,16 @@ proc handler*(servectx: ServeCtx, ctx: MofuwCtx) {.async.} =
         continue
 
       await servectx.handler(ctx)
+      ctx.currentBufPos += ctx.bodyStart
 
-      # for pipeline request
-      var remainingBufferSize = ctx.bufLen - ctx.bodyStart
-      while true:
-        if unlikely(isGETorHEAD and (remainingBufferSize > 0)):
+      while (ctx.bufLen - ctx.currentBufPos) > 0:
+        case ctx.doubleCRLFCheck()
+        of endReq:
+          await servectx.handler(ctx)
           ctx.currentBufPos += ctx.bodyStart
-          case ctx.doubleCRLFCheck()
-          of endReq:
-            await servectx.handler(ctx)
-            remainingBufferSize -= ctx.currentBufPos
-          else:
-            break
         else:
-          asyncCheck ctx.mofuwWrite()
-          ctx.bufLen = 0
           break
+
+      asyncCheck ctx.mofuwWrite()
+      ctx.bufLen = 0
+      ctx.currentBufPos = 0
