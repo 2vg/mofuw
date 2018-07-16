@@ -1,4 +1,4 @@
-import ctx, ctxpool, sysutils
+import ctx, ctxpool, newhandler, sysutils
 import httputils
 import net, nativesockets, asyncdispatch
 
