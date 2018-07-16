@@ -1,5 +1,5 @@
 import ctx, ctxpool, newhandler, sysutils
-import httputils
+import mofuhttputils
 import net, nativesockets, asyncdispatch, threadpool
 
 when defined(windows):

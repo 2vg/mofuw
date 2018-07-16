@@ -52,7 +52,7 @@ proc mofuwWrite*(ctx: MofuwCtx) {.async.} =
   ctx.respLen = 0
 
 template mofuwResp*(status, mime, body: string): typed =
-  asyncCheck ctx.mofuwSend(respGen(
+  asyncCheck ctx.mofuwSend(makeResp(
     status,
     mime,
     body))

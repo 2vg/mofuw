@@ -1,5 +1,5 @@
 import ctx, newio
-import mofuparser, httputils
+import mofuparser, mofuhttputils
 import os, macros, strtabs, strutils, parseutils,
        mimetypes, asyncdispatch, asyncfile
 
@@ -72,7 +72,7 @@ proc bodyTooLarge*(ctx: MofuwCtx) {.async.} =
   await ctx.mofuwWrite()
 
 proc badGateway*(ctx: MofuwCtx) {.async.} =
-  await mofuwSend(ctx, respGen(
+  await mofuwSend(ctx, makeResp(
     HTTP502,
     "text/plain",
     "502 Bad Gateway"))

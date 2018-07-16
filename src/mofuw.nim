@@ -1,7 +1,7 @@
 import uri, strtabs, asyncdispatch
 
 import
-  private/httputils,
+  mofuhttputils,
   mofuw/nest,
   mofuw/jesterUtils
 
@@ -9,7 +9,7 @@ export
   uri,
   nest,
   strtabs,
-  httputils,
+  mofuhttputils,
   asyncdispatch
 
 when defined(vhost):
