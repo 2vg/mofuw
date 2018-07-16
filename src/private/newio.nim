@@ -26,7 +26,10 @@ proc mofuwRead*(ctx: MofuwCtx): Future[int] {.async.} =
 proc mofuwSend*(ctx: MofuwCtx, body: string) {.async.} =
   if unlikely ctx.respLen + body.len > ctx.resp.len:
     ctx.resp.setLen(ctx.resp.len + ctx.resp.len)
-  ctx.resp.add(body)
+  var buf: string
+  buf.shallowcopy(body)
+  let ol = ctx.respLen
+  copyMem(addr ctx.resp[ol], addr buf[0],buf.len)
   ctx.respLen += body.len
 
 proc mofuwWrite*(ctx: MofuwCtx) {.async.} =

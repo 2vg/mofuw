@@ -1,6 +1,6 @@
 import ctx, ctxpool, newhandler, sysutils
 import httputils
-import net, nativesockets, asyncdispatch
+import net, nativesockets, asyncdispatch, threadpool
 
 when defined(windows):
   from winlean import TCP_NODELAY
@@ -28,7 +28,7 @@ proc initCtx*(ctx: MofuwCtx, fd: AsyncFD, ip: string): MofuwCtx =
   ctx.respLen = 0
   ctx
 
-proc mofuwServe*(ctx: ServeCtx) {.async.} =
+proc mofuwServe*(ctx: ServeCtx) {.async, gcsafe.} =
   initCtxPool(ctx.readBufferSize, ctx.writeBufferSize, ctx.poolsize)
 
   let server = ctx.port.newServerSocket().AsyncFD
@@ -47,8 +47,16 @@ proc mofuwServe*(ctx: ServeCtx) {.async.} =
     try:
       let (address, client) = await acceptAddr(server)
       let mCtx = getCtx(ctx.readBufferSize, ctx.writeBuffersize).initCtx(client, address)
-      asyncCheck ctx.handler(mCtx)
+      asyncCheck handler(ctx, mCtx)
     except:
       # TODO async sleep.
       # await sleepAsync(10)
       cantAccept = true
+
+proc runServer*(ctx: ServeCtx) {.thread.} =
+  waitFor ctx.mofuwServe()
+
+proc serve*(ctx: ServeCtx) =
+  for _ in 0 ..< countCPUs():
+    spawn ctx.runServer()
+  sync()

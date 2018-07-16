@@ -61,18 +61,22 @@ proc body*(ctx: MofuwCtx, key: string = nil): string =
 
 proc notFound*(ctx: MofuwCtx) {.async.} =
   await mofuwSend(ctx, notFound())
+  await ctx.mofuwWrite()
 
 proc badRequest*(ctx: MofuwCtx) {.async.} =
   await mofuwSend(ctx, badRequest())
+  await ctx.mofuwWrite()
 
 proc bodyTooLarge*(ctx: MofuwCtx) {.async.} =
   await mofuwSend(ctx, bodyTooLarge())
+  await ctx.mofuwWrite()
 
 proc badGateway*(ctx: MofuwCtx) {.async.} =
   await mofuwSend(ctx, respGen(
     HTTP502,
     "text/plain",
     "502 Bad Gateway"))
+  await ctx.mofuwWrite()
 
 type
   ReqState* = enum
@@ -85,7 +89,7 @@ proc doubleCRLFCheck*(ctx: MofuwCtx): ReqState =
   # ##
   # parse request
   # ##
-  let bodyStart = ctx.mhr.mpParseRequest(addr ctx.buf[0], ctx.bufLen)
+  let bodyStart = ctx.mhr.mpParseRequest(addr ctx.buf[ctx.currentBufPos], ctx.bufLen - 1)
 
   # ##
   # found HTTP Method, return
@@ -124,7 +128,6 @@ proc doubleCRLFCheck*(ctx: MofuwCtx): ReqState =
       # very slow \r\l\r\l check
       # ##
       for i, ch in ctx.buf:
-        if i == ctx.bufLen: return badReq
         if ch == '\r':
           if ctx.buf.lenCheck(i+1) == '\l' and
              ctx.buf.lenCheck(i+2) == '\r' and

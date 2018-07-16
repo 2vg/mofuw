@@ -2,7 +2,7 @@ import strtabs, asyncdispatch
 import mofuparser
 
 type
-  MofuwHandler* = proc(ctx: MofuwCtx): Future[void]
+  MofuwHandler* = proc(ctx: MofuwCtx): Future[void] {.gcsafe.}
 
   ServeCtx* = ref object
     servername*: string

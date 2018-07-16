@@ -33,12 +33,13 @@ proc handler*(servectx: ServeCtx, ctx: MofuwCtx) {.async.} =
       var remainingBufferSize = ctx.bufLen - ctx.bodyStart
       while true:
         if unlikely(isGETorHEAD and (remainingBufferSize > 0)):
-          ctx.currentBufPos = ctx.bodyStart
-          if ctx.doubleCRLFCheck() != endReq:
-            await ctx.badRequest()
-          else:
+          ctx.currentBufPos += ctx.bodyStart
+          case ctx.doubleCRLFCheck()
+          of endReq:
             await servectx.handler(ctx)
-          remainingBufferSize = ctx.bufLen - ctx.bodyStart
+            remainingBufferSize -= ctx.currentBufPos
+          else:
+            break
         else:
           asyncCheck ctx.mofuwWrite()
           ctx.bufLen = 0
