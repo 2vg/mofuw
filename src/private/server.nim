@@ -11,6 +11,7 @@ proc mofuwInit(port, mBodySize: int;
   let server = newServerSocket(port).AsyncFD
   setMaxBodySize(mBodySize)
   register(server)
+  setServerName("mofuw")
   updateServerTime()
   addTimer(1000, false, updateTime)
 
