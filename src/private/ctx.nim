@@ -10,7 +10,6 @@ type
     readBufferSize*, writeBufferSize*: int
     timeout*: int
     poolsize*: int
-    
     handler*: MofuwHandler
 
   MofuwCtx* = ref object
@@ -29,12 +28,14 @@ type
       sslHandle*: SslPtr
 
 proc newServeCtx*(servername = "mofuw", port: int,
+                  handler: MofuwHandler,
                   readBufferSize, writeBufferSize = 4096,
                   timeout = 3 * 1000,
                   poolsize = 128): ServeCtx =
   result = ServeCtx(
     servername: servername,
     port: port,
+    handler: handler,
     readBufferSize: readBufferSize,
     writeBufferSize: writeBufferSize,
     timeout: timeout,
