@@ -2,6 +2,8 @@ import ctx, ctxpool
 import mofuhttputils
 import asyncdispatch
 
+when defined ssl: import ssl
+
 proc mofuwClose*(ctx: MofuwCtx) =
   closeSocket(ctx.fd)
   when defined ssl:

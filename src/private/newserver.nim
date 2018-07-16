@@ -1,11 +1,23 @@
 import ctx, ctxpool, newhandler, sysutils
 import mofuhttputils
-import net, nativesockets, asyncdispatch, threadpool
+import net, critbits, nativesockets, asyncdispatch, threadpool
 
 when defined(windows):
   from winlean import TCP_NODELAY
 else:
   from posix import TCP_NODELAY
+
+when defined ssl: import ssl
+
+proc registerCallback*(ctx: ServeCtx, serverName: string, cb: MofuwHandler) =
+  ctx.vhostTbl[serverName] = cb
+  if not ctx.vhostTbl.hasKey(""): ctx.vhostTbl[""] = cb
+
+proc setCallBackTable*(servectx: ServeCtx, ctx: MofuwCtx) =
+  ctx.vhostTbl = servectx.vhostTbl
+
+proc getCallBackTable*(ctx: MofuwCtx): VhostTable =
+  ctx.vhostTbl
 
 proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
@@ -26,9 +38,10 @@ proc initCtx*(ctx: MofuwCtx, fd: AsyncFD, ip: string): MofuwCtx =
   ctx.ip = ip
   ctx.bufLen = 0
   ctx.respLen = 0
+  ctx.currentBufPos = 0
   ctx
 
-proc mofuwServe*(ctx: ServeCtx) {.async, gcsafe.} =
+proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
   initCtxPool(ctx.readBufferSize, ctx.writeBufferSize, ctx.poolsize)
 
   let server = ctx.port.newServerSocket().AsyncFD
@@ -47,14 +60,20 @@ proc mofuwServe*(ctx: ServeCtx) {.async, gcsafe.} =
     try:
       let (address, client) = await acceptAddr(server)
       let mCtx = getCtx(ctx.readBufferSize, ctx.writeBuffersize).initCtx(client, address)
+      setCallBackTable(ctx, mCtx)
+      when defined ssl:
+        if unlikely isSSL: ctx.toSSLSocket(mCtx)
       asyncCheck handler(ctx, mCtx)
     except:
       # TODO async sleep.
       # await sleepAsync(10)
       cantAccept = true
 
-proc runServer*(ctx: ServeCtx) {.thread.} =
-  waitFor ctx.mofuwServe()
+proc runServer*(ctx: ServeCtx, isSSL = false) {.thread.} =
+  if isSSl:
+    waitFor ctx.mofuwServe(true)
+  else:
+    waitFor ctx.mofuwServe(false)
 
 proc serve*(ctx: ServeCtx) =
   for _ in 0 ..< countCPUs():

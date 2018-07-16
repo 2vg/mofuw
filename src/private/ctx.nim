@@ -1,8 +1,10 @@
-import strtabs, asyncdispatch
+import strtabs, critbits, asyncdispatch
 import mofuparser
 
 type
   MofuwHandler* = proc(ctx: MofuwCtx): Future[void] {.gcsafe.}
+
+  VhostTable* = CritBitTree[MofuwHandler]
 
   ServeCtx* = ref object
     servername*: string
@@ -11,6 +13,9 @@ type
     timeout*: int
     poolsize*: int
     handler*: MofuwHandler
+    vhostTbl*: VhostTable
+    when defined ssl:
+      sslCtxTbl*: CritBitTree[SslCtx]
 
   MofuwCtx* = ref object
     fd*: AsyncFD
@@ -22,6 +27,7 @@ type
     currentBufPos*: int
     bodyStart*: int
     bodyParams*, uriParams*, uriQuerys*: StringTableRef
+    vhostTbl*: VhostTable
     when defined ssl:
       isSSL*: bool
       sslCtx*: SslCtx
