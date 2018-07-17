@@ -25,6 +25,7 @@ mofuw places emphasis on compatibility between usability and performance.
 - support SSL
 - support HTTP pipeline / HTTP Streaming
 - support WebSocket
+- support virtual host, multi SSL
 - zero copy parser
 - Easy API, create Web Application or extended Web server
 - multi-thread event-loop
