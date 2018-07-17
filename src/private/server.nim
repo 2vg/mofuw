@@ -46,7 +46,7 @@ proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
 
   let server = ctx.port.newServerSocket().AsyncFD
   register(server)
-  setServerName(ctx.servername)
+  setServerName("mofuw")
   updateServerTime()
   addTimer(1000, false, updateTime)
 
