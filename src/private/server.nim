@@ -61,6 +61,7 @@ proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
       let (address, client) = await acceptAddr(server)
       let mCtx = getCtx(ctx.readBufferSize, ctx.writeBuffersize).initCtx(client, address)
       setCallBackTable(ctx, mCtx)
+      mCtx.maxBodySize = ctx.maxBodySize
       when defined ssl:
         if unlikely isSSL: ctx.toSSLSocket(mCtx)
       asyncCheck handler(ctx, mCtx)

@@ -149,7 +149,7 @@ proc doubleCRLFCheck*(ctx: MofuwCtx): ReqState =
     # ##
     # ctx.buf.len - bodyStart = request body size
     # ##
-    if unlikely(ctx.buf.len - bodyStart > 0):
+    if unlikely(ctx.bufLen - bodyStart > ctx.maxBodySize):
       return bodyLarge
     else:
       # ##

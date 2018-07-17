@@ -9,7 +9,7 @@ type
   ServeCtx* = ref object
     servername*: string
     port*: int
-    readBufferSize*, writeBufferSize*: int
+    readBufferSize*, writeBufferSize*, maxBodySize*: int
     timeout*: int
     poolsize*: int
     handler*, hookrequest*, hookresponse*: MofuwHandler
@@ -26,6 +26,7 @@ type
     bufLen*, respLen*: int
     currentBufPos*: int
     bodyStart*: int
+    maxBodySize*: int
     bodyParams*, uriParams*, uriQuerys*: StringTableRef
     vhostTbl*: VhostTable
     when defined ssl:
@@ -36,6 +37,7 @@ type
 proc newServeCtx*(servername = "mofuw", port: int,
                   handler: MofuwHandler = nil,
                   readBufferSize, writeBufferSize = 4096,
+                  maxBodySize = 1024 * 1024 * 5,
                   timeout = 3 * 1000,
                   poolsize = 128): ServeCtx =
   result = ServeCtx(
@@ -44,6 +46,7 @@ proc newServeCtx*(servername = "mofuw", port: int,
     handler: handler,
     readBufferSize: readBufferSize,
     writeBufferSize: writeBufferSize,
+    maxBodySize: maxBodySize,
     timeout: timeout,
     poolsize: poolsize
   )
