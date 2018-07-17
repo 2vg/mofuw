@@ -12,13 +12,13 @@ proc nowDateTime: (string, string) =
 # ##
 # still develop
 # ##
-proc serverLogging*(req: mofuwReq, format: string = nil) =
+proc serverLogging*(ctx: MofuwCtx, format: string = nil) =
   let (date, time) = nowDateTime()
   if format.isNil:
     var log = %*{
-      "address": req.ip,
-      "request_method": req.getMethod,
-      "request_path": req.getPath,
+      "address": ctx.ip,
+      "request_method": ctx.getMethod,
+      "request_path": ctx.getPath,
       "date": date,
       "time": time,
     }

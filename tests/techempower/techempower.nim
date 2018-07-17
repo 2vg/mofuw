@@ -1,9 +1,12 @@
 import ../../src/mofuw
 
-mofuwHandler:
-  if req.getPath == "/plaintext":
-    mofuwResp(HTTP200, "text/plain", "Hello, World!")
+proc handler(ctx: MofuwCtx) {.async.} =
+  if ctx.getPath == "/plaintext":
+    mofuwOK("Hello, World!")
   else:
-    mofuwResp(HTTP404, "text/plain", "NOT FOUND")
+   mofuwResp(HTTP404, "tet/plain", "Not Found")
 
-mofuwHandler.mofuwRun(8080)
+newServeCtx(
+  port = 8080,
+  handler = handler
+).serve()

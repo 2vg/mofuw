@@ -1,84 +1,82 @@
-import core, handler
+import ctx, ctxpool, handler, sysutils
 import mofuhttputils
-import strtabs, openssl, threadpool, asyncdispatch
+import net, critbits, nativesockets, asyncdispatch, threadpool
+
+when defined(windows):
+  from winlean import TCP_NODELAY
+else:
+  from posix import TCP_NODELAY
+
+when defined ssl: import ssl
+
+proc registerCallback*(ctx: ServeCtx, serverName: string, cb: MofuwHandler) =
+  ctx.vhostTbl[serverName] = cb
+  if not ctx.vhostTbl.hasKey(""): ctx.vhostTbl[""] = cb
+
+proc setCallBackTable*(servectx: ServeCtx, ctx: MofuwCtx) =
+  ctx.vhostTbl = servectx.vhostTbl
+
+proc getCallBackTable*(ctx: MofuwCtx): VhostTable =
+  ctx.vhostTbl
 
 proc updateTime(fd: AsyncFD): bool =
   updateServerTime()
   return false
 
-proc mofuwInit(port, mBodySize: int;
-               ctx: SslCtx = nil) {.async.} =
-  let server = newServerSocket(port).AsyncFD
-  setMaxBodySize(mBodySize)
+proc newServerSocket*(port: int): SocketHandle =
+  let server = newSocket()
+  server.setSockOpt(OptReuseAddr, true)
+  server.setSockOpt(OptReusePort, true)
+  server.getFD().setSockOptInt(cint(IPPROTO_TCP), TCP_NODELAY, 1)
+  server.getFd.setBlocking(false)
+  server.bindAddr(Port(port))
+  server.listen(defaultBacklog().cint)
+  return server.getFd()
+
+proc initCtx*(ctx: MofuwCtx, fd: AsyncFD, ip: string): MofuwCtx =
+  ctx.fd = fd
+  ctx.ip = ip
+  ctx.bufLen = 0
+  ctx.respLen = 0
+  ctx.currentBufPos = 0
+  ctx
+
+proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
+  initCtxPool(ctx.readBufferSize, ctx.writeBufferSize, ctx.poolsize)
+
+  let server = ctx.port.newServerSocket().AsyncFD
   register(server)
   setServerName("mofuw")
   updateServerTime()
   addTimer(1000, false, updateTime)
 
-  var cantAccept = false
+  var cantaccept = false
+
   while true:
-    if unlikely cantAccept:
+    if unlikely cantaccept:
       await sleepAsync(10)
-      cantAccept = false
+      cantaccept = true
 
     try:
-      let data = await acceptAddr(server)
-      let (address, client) = data
-      #client.SocketHandle.setBlocking(false)
-      # handler error check.
-      asyncCheck handler(client, address)
+      let (address, client) = await acceptAddr(server)
+      let mCtx = getCtx(ctx.readBufferSize, ctx.writeBuffersize).initCtx(client, address)
+      setCallBackTable(ctx, mCtx)
+      mCtx.maxBodySize = ctx.maxBodySize
+      when defined ssl:
+        if unlikely isSSL: ctx.toSSLSocket(mCtx)
+      asyncCheck handler(ctx, mCtx)
     except:
       # TODO async sleep.
       # await sleepAsync(10)
       cantAccept = true
 
-proc run(port, maxBodySize: int;
-         cb: Callback) {.thread.} =
+proc runServer*(ctx: ServeCtx, isSSL = false) {.thread.} =
+  if isSSl:
+    waitFor ctx.mofuwServe(true)
+  else:
+    waitFor ctx.mofuwServe(false)
 
-  setCallback(cb)
-  waitFor mofuwInit(port, maxBodySize)
-
-proc mofuwRun*(port: int = 8080,
-               maxBodySize: int = defaultMaxBodySize) =
-
-  if getCallback() == nil: raise newException(Exception, "callback is nil.")
-
-  #if isDebug.bool:
-  #  errorLogFile = openAsync("error.log")
-  #  accessLogFile = openAsync("access.log")
-
-  for i in 0 ..< countCPUs():
-    spawn run(port, maxBodySize, getCallback())
-
+proc serve*(ctx: ServeCtx) =
+  for _ in 0 ..< countCPUs():
+    spawn ctx.runServer()
   sync()
-
-proc mofuwRun*(cb: Callback,
-               port: int = 8080,
-               maxBodySize: int = defaultMaxBodySize) =
-
-  if cb == nil: raise newException(Exception, "callback is nil.")
-
-  #if isDebug.bool:
-  #  errorLogFile = openAsync("error.log")
-  #  accessLogFile = openAsync("access.log")
-
-  for i in 0 ..< countCPUs():
-    spawn run(port, maxBodySize, cb)
-
-  sync()
-
-when defined ssl:
-  proc mofuwRunWithSSL*(cb: Callback,
-                        port: int = 4443,
-                        maxBodySize: int = defaultMaxBodySize,
-                        sslVerify = true) =
-    if sslVerify: mofuwSSLInit(CVerifyPeer)
-    else: mofuwSSLInit(CVerifyNone)
-    mofuwRun(cb, port, maxBodySize)
-
-  proc mofuwRunWithSSL*(port: int = 4443,
-                        maxBodySize: int = defaultMaxBodySize,
-                        sslVerify = true) =
-    if sslVerify: mofuwSSLInit(CVerifyPeer)
-    else: mofuwSSLInit(CVerifyNone)
-    mofuwRun(port, maxBodySize)
