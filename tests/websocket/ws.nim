@@ -1,6 +1,6 @@
 import ../../src/mofuw/websocket, ../../src/mofuw
 
-mofuwHandler:
+proc handler(ctx: MofuwCtx) {.async.} =
   let (ws, error) = await verifyWebsocketRequest(ctx)
 
   if ws.isNil:
@@ -27,4 +27,7 @@ mofuwHandler:
     except:
       echo "encountered exception: ", getCurrentExceptionMsg()
 
-mofuwHandler.mofuwRun(8080)
+newServeCtx(
+  port = 8080,
+  handler = handler
+).serve()
