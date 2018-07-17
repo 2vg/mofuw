@@ -7,8 +7,6 @@ when defined(windows):
 else:
   from posix import TCP_NODELAY
 
-when defined ssl: import ssl
-
 proc registerCallback*(ctx: ServeCtx, serverName: string, cb: MofuwHandler) =
   ctx.vhostTbl[serverName] = cb
   if not ctx.vhostTbl.hasKey(""): ctx.vhostTbl[""] = cb
@@ -63,7 +61,9 @@ proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
       setCallBackTable(ctx, mCtx)
       mCtx.maxBodySize = ctx.maxBodySize
       when defined ssl:
-        if unlikely isSSL: ctx.toSSLSocket(mCtx)
+        if unlikely isSSL:
+          mCtx.isSSL = true
+          ctx.toSSLSocket(mCtx)
       asyncCheck handler(ctx, mCtx)
     except:
       # TODO async sleep.
@@ -79,4 +79,6 @@ proc runServer*(ctx: ServeCtx, isSSL = false) {.thread.} =
 proc serve*(ctx: ServeCtx) =
   for _ in 0 ..< countCPUs():
     spawn ctx.runServer()
-  sync()
+
+  when not defined noSync:
+    sync()

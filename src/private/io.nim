@@ -2,7 +2,32 @@ import ctx, ctxpool
 import mofuhttputils
 import asyncdispatch
 
-when defined ssl: import ssl
+when defined ssl:
+  import openssl
+
+  proc asyncSSLRecv*(ctx: MofuwCtx, buf: ptr char, bufLen: int): Future[int] =
+    var retFuture = newFuture[int]("asyncSSLRecv")
+    proc cb(fd: AsyncFD): bool =
+      result = true
+      let rcv = SSL_read(ctx.sslHandle, buf, bufLen.cint)
+      if rcv <= 0:
+        retFuture.complete(0)
+      else:
+        retFuture.complete(rcv)
+    addRead(ctx.fd, cb)
+    return retFuture
+
+  proc asyncSSLSend*(ctx: MofuwCtx, buf: ptr char, bufLen: int): Future[int] =
+    var retFuture = newFuture[int]("asyncSSLSend")
+    proc cb(fd: AsyncFD): bool =
+      result = true
+      let rcv = SSL_write(ctx.sslHandle, buf, bufLen.cint)
+      if rcv <= 0:
+        retFuture.complete(0)
+      else:
+        retFuture.complete(rcv)
+    addWrite(ctx.fd, cb)
+    return retFuture
 
 proc mofuwClose*(ctx: MofuwCtx) =
   closeSocket(ctx.fd)
