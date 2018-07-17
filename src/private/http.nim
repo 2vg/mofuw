@@ -185,6 +185,9 @@ proc haveBodyHandler*(ctx: MofuwCtx, handler: MofuwHandler): Future[bool] {.asyn
         let rcv = await ctx.mofuwRead()
         if rcv == 0: ctx.mofuwClose(); return false
       await handler(ctx)
+      asyncCheck ctx.mofuwWrite()
+      ctx.bufLen = 0
+      ctx.currentBufPos = 0
       return true
     else:
       # TODO: Content-Length error.
@@ -204,6 +207,7 @@ proc haveBodyHandler*(ctx: MofuwCtx, handler: MofuwHandler): Future[bool] {.asyn
     ctx.bufLen = ctx.bodyStart + chunkLen
 
     await handler(ctx)
+    await ctx.mofuwWrite()
 
     if parseRes == -2:
       while true:
@@ -214,6 +218,7 @@ proc haveBodyHandler*(ctx: MofuwCtx, handler: MofuwHandler): Future[bool] {.asyn
         of -2:
           ctx.bufLen = ctx.bodyStart + chunkLen
           await handler(ctx)
+          await ctx.mofuwWrite()
         of -1:
           await ctx.badRequest()
           ctx.mofuwClose()
@@ -222,9 +227,11 @@ proc haveBodyHandler*(ctx: MofuwCtx, handler: MofuwHandler): Future[bool] {.asyn
           if parseRes != 2:
             discard await ctx.mofuwRead()
           await handler(ctx)
+          await ctx.mofuwWrite()
           break
 
     ctx.bufLen = 0
+    ctx.currentBufPos = 0
     return true
   else:
     await ctx.badRequest()
