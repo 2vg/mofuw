@@ -1,4 +1,4 @@
-import uri, strtabs, asyncdispatch
+import uri, strtabs, critbits, asyncdispatch
 
 import
   mofuhttputils,
@@ -9,12 +9,13 @@ export
   uri,
   nest,
   strtabs,
+  critbits,
   mofuhttputils,
   asyncdispatch
 
-when defined(vhost):
-  import critbits
-  export critbits
+when defined ssl:
+  import private/ssl
+  export ssl
 
-import private/[ctx, ctxpool, handler, http, io, server]
-export ctx, http, io, server
+import private/[ctx, ctxpool, route, handler, http, io, server]
+export ctx, http, io, server, route

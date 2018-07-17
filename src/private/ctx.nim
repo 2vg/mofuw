@@ -34,7 +34,7 @@ type
       sslHandle*: SslPtr
 
 proc newServeCtx*(servername = "mofuw", port: int,
-                  handler: MofuwHandler,
+                  handler: MofuwHandler = nil,
                   readBufferSize, writeBufferSize = 4096,
                   timeout = 3 * 1000,
                   poolsize = 128): ServeCtx =

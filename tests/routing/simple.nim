@@ -10,4 +10,7 @@ routes:
   post "/create":
     mofuwOK("created: " & ctx.body)
 
-mofuwRun(8080)
+newServeCtx(
+  port = 8080,
+  handler = mofuwHandler
+).serve()

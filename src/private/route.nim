@@ -1,7 +1,7 @@
-import handler
+import ctx, handler
 import macros, strutils
 
-macro mofuwHandler*(body: untyped): untyped =
+macro handlerMacro*(body: untyped): untyped =
   result = newStmtList()
 
   let lam = newNimNode(nnkProcDef).add(
@@ -33,7 +33,7 @@ macro mofuwLambda(body: untyped): untyped =
 
   result.add(lam)
 
-macro routes*(body: untyped): untyped =
+macro routesBase*(body: untyped): untyped =
   var staticPath = ""
 
   result = newStmtList()
@@ -125,17 +125,14 @@ macro routes*(body: untyped): untyped =
     )
   )
 
-  when defined vhost:
-    result.add(handlerBody)
-  else:
-    result.add(getAst(mofuwHandler(handlerBody)))
+  result.add(handlerBody)
 
-    result.add(parseStmt("""
-      setCallback(mofuwHandler)
-    """))
+macro routes*(body: untyped): untyped =
+  let base = getAst(routesBase(body))
+  result = getAst(handlerMacro(base))
 
 when defined vhost:
-  macro vhosts*(body: untyped): untyped =
+  macro vhosts*(ctx: ServeCtx, body: untyped): untyped =
     result = newStmtList()
 
     for i in 0 ..< body.len:
@@ -145,20 +142,34 @@ when defined vhost:
         let serverName = $body[i][1]
         if callName != "host": raise newException(Exception, "can't define except Host.")
 
-        let lam = newNimNode(nnkLambda).add(
-          newEmptyNode(),newEmptyNode(),newEmptyNode(),
-          newNimNode(nnkFormalParams).add(
-            newEmptyNode(),
-            newIdentDefs(ident"ctx", ident"MofuwCtx")
-          ),
-          newNimNode(nnkPragma).add(ident"async"),
-          newEmptyNode(),
-          body[i][2]
-        )
+        let lam =
+          if $body[i][2][0][0].toStrLit == "routes":
+            newNimNode(nnkLambda).add(
+              newEmptyNode(),newEmptyNode(),newEmptyNode(),
+              newNimNode(nnkFormalParams).add(
+                newEmptyNode(),
+                newIdentDefs(ident"ctx", ident"MofuwCtx")
+              ),
+              newNimNode(nnkPragma).add(ident"async"),
+              newEmptyNode(),
+              getAst(routesBase(body[i][2][0][1]))
+            )
+          else:
+            newNimNode(nnkLambda).add(
+              newEmptyNode(),newEmptyNode(),newEmptyNode(),
+              newNimNode(nnkFormalParams).add(
+                newEmptyNode(),
+                newIdentDefs(ident"ctx", ident"MofuwCtx")
+              ),
+              newNimNode(nnkPragma).add(ident"async"),
+              newEmptyNode(),
+              body[i][2]
+            )
 
         result.add(
           newCall(
             "registerCallBack",
+            `ctx`,
             ident(serverName).toStrLit,
             lam))
       else:
@@ -173,8 +184,9 @@ when defined vhost:
         for cb in table.values:
           await cb(ctx)
 
-    result.add(getAst(mofuwHandler(handler)))
+    result.add(getAst(handlerMacro(handler)))
 
-    result.add(parseStmt("""
-      setCallback(mofuwHandler)
-    """))
+    result.add(quote do:
+      `ctx`.handler = mofuwHandler
+      `ctx`.serve()
+    )
