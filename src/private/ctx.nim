@@ -45,7 +45,8 @@ type
       sslHandle*: SslPtr
 
 proc newServeCtx*(servername = "mofuw", port: int,
-                  handler: MofuwHandler = nil,
+                  handler,
+                  hookrequest, hookresponse: MofuwHandler = nil,
                   readBufferSize, writeBufferSize = 4096,
                   maxBodySize = 1024 * 1024 * 5,
                   timeout = 3 * 1000,
