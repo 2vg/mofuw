@@ -184,9 +184,9 @@ when defined vhost:
         for cb in table.values:
           await cb(ctx)
 
-    result.add(getAst(handlerMacro(handler)))
+    let vhostHandler = getAst(mofuwLambda(handler))
 
     result.add(quote do:
-      `ctx`.handler = mofuwHandler
+      `ctx`.handler = `vhostHandler`
       `ctx`.serve()
     )
