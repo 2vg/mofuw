@@ -52,7 +52,7 @@ proc mofuwRead*(ctx: MofuwCtx): Future[int] {.async.} =
   return rcv
 
 proc mofuwSend*(ctx: MofuwCtx, body: string) {.async.} =
-  if unlikely ctx.respLen + body.len > ctx.resp.len:
+  while unlikely ctx.respLen + body.len > ctx.resp.len:
     ctx.resp.setLen(ctx.resp.len + ctx.resp.len)
   var buf: string
   buf.shallowcopy(body)
