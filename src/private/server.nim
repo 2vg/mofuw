@@ -78,7 +78,7 @@ proc runServer*(ctx: ServeCtx, isSSL = false) {.thread.} =
 
 proc serve*(ctx: ServeCtx) =
   for _ in 0 ..< countCPUs():
-    spawn ctx.runServer()
+    spawn ctx.runServer(ctx.isSSL)
 
   when not defined noSync:
     sync()

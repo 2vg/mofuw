@@ -23,6 +23,7 @@ type
     poolsize*: int
     handler*, hookrequest*, hookresponse*: MofuwHandler
     vhostTbl*: VhostTable
+    isSSL*: bool
     when defined ssl:
       sslCtxTbl*: CritBitTree[SslCtx]
 
@@ -48,7 +49,8 @@ proc newServeCtx*(servername = "mofuw", port: int,
                   readBufferSize, writeBufferSize = 4096,
                   maxBodySize = 1024 * 1024 * 5,
                   timeout = 3 * 1000,
-                  poolsize = 128): ServeCtx =
+                  poolsize = 128,
+                  isSSL = false): ServeCtx =
   result = ServeCtx(
     servername: servername,
     port: port,
@@ -57,7 +59,8 @@ proc newServeCtx*(servername = "mofuw", port: int,
     writeBufferSize: writeBufferSize,
     maxBodySize: maxBodySize,
     timeout: timeout,
-    poolsize: poolsize
+    poolsize: poolsize,
+    isSSL: isSSL
   )
 
 proc newMofuwCtx*(readSize: int, writeSize: int): MofuwCtx =
@@ -152,7 +155,7 @@ when defined ssl:
 
     if serverctx.sslCtxTbl.hasKey(serverName):
       raise newException(Exception, "already have callback.")
-      
+
     serverctx.sslCtxTbl[serverName] = ctx
 
     if not serverctx.sslCtxTbl.hasKey(""): serverctx.sslCtxTbl[""] = ctx
