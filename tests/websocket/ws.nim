@@ -1,7 +1,7 @@
-import mofuw/websocket, mofuw
+import ../../src/mofuw/websocket, ../../src/mofuw
 
-mofuwHandler:
-  let (ws, error) = await verifyWebsocketRequest(req, res)
+proc handler(ctx: MofuwCtx) {.async.} =
+  let (ws, error) = await verifyWebsocketRequest(ctx)
 
   if ws.isNil:
     echo "WS negotiation failed: ", error
@@ -27,4 +27,7 @@ mofuwHandler:
     except:
       echo "encountered exception: ", getCurrentExceptionMsg()
 
-mofuwHandler.mofuwRun(8080)
+newServeCtx(
+  port = 8080,
+  handler = handler
+).serve()
