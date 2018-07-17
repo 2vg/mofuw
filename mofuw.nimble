@@ -1,6 +1,6 @@
 # Package
 
-version       = "2.0.0"
+version       = "1.3.1"
 author        = "2vg"
 description   = "more faster, ultra performance webserver"
 license       = "MIT"
@@ -10,5 +10,5 @@ skipDirs      = @["images"]
 # Dependencies
 
 requires "nim >= 0.18.0"
-requires "https://github.com/2vg/mofuparser#head"
-requires "https://github.com/2vg/mofuhttputils#head"
+requires "https://github.com/2vg/mofuparser >= 0.3.0"
+requires "https://github.com/2vg/mofuhttputils"

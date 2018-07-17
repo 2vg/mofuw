@@ -6,7 +6,4 @@ routes:
   get "/foo":
     mofuwOK("yay")
 
-newServeCtx(
-  port = 8080,
-  handler = mofuwHandler
-).serve()
+mofuwRun(8080)

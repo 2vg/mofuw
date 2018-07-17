@@ -1,90 +1,80 @@
-import ctx, ctxpool
-import mofuhttputils
+import core
 import asyncdispatch
 
-when defined ssl:
-  import openssl
-
-  proc asyncSSLRecv*(ctx: MofuwCtx, buf: ptr char, bufLen: int): Future[int] =
-    var retFuture = newFuture[int]("asyncSSLRecv")
-    proc cb(fd: AsyncFD): bool =
-      result = true
-      let rcv = SSL_read(ctx.sslHandle, buf, bufLen.cint)
-      if rcv <= 0:
-        retFuture.complete(0)
-      else:
-        retFuture.complete(rcv)
-    addRead(ctx.fd, cb)
-    return retFuture
-
-  proc asyncSSLSend*(ctx: MofuwCtx, buf: ptr char, bufLen: int): Future[int] =
-    var retFuture = newFuture[int]("asyncSSLSend")
-    proc cb(fd: AsyncFD): bool =
-      result = true
-      let rcv = SSL_write(ctx.sslHandle, buf, bufLen.cint)
-      if rcv <= 0:
-        retFuture.complete(0)
-      else:
-        retFuture.complete(rcv)
-    addWrite(ctx.fd, cb)
-    return retFuture
-
-proc mofuwClose*(ctx: MofuwCtx) =
-  closeSocket(ctx.fd)
+# ##
+# close socket template
+# ##
+template mofuwClose*(res: mofuwRes) =
   when defined ssl:
-    if unlikely ctx.isSSL:
-      discard ctx.sslHandle.SSLShutdown()
-      ctx.sslHandle.SSLFree()
-  ctx.freeCtx()
+    try:
+      closeSocket(res.fd)
+    except:
+      # TODO send error logging
+      discard
+    if unlikely res.isSSL:
+      discard res.sslHandle.SSLShutdown()
+      res.sslHandle.SSLFree()
+  else:
+    try:
+      closeSocket(res.fd)
+    except:
+      # TODO send error logging
+      discard
 
-proc mofuwRead*(ctx: MofuwCtx): Future[int] {.async.} =
-  let rcvLimit = ctx.buf.len - ctx.bufLen
-  if rcvLimit == 0: ctx.buf.setLen(ctx.buf.len + ctx.buf.len)
-
+# ##
+# recv template
+# ##
+template mofuwRecvInto*(res: mofuwRes, buf: pointer, bufLen: int): untyped =
   when defined ssl:
-    if unlikely ctx.isSSL:
-      let rcv = await asyncSSLrecv(ctx, addr ctx.buf[ctx.bufLen], rcvLimit)
-      ctx.bufLen += rcv
-      return rcv
+    if res.isSSL:
+      asyncSSLrecv(res, cast[ptr char](buf), bufLen)
+    else:
+      recvInto(res.fd, buf, bufLen)
+  else:
+    recvInto(res.fd, buf, bufLen)
 
-  let rcv = await recvInto(ctx.fd, addr ctx.buf[ctx.bufLen], rcvLimit)
-  ctx.bufLen += rcv
-  return rcv
-
-proc mofuwSend*(ctx: MofuwCtx, body: string) {.async.} =
-  if unlikely ctx.respLen + body.len > ctx.resp.len:
-    ctx.resp.setLen(ctx.resp.len + ctx.resp.len)
+# ##
+# main send proc
+# ##
+proc mofuwWrite*(res: mofuwRes) {.async.} =
   var buf: string
-  buf.shallowcopy(body)
-  let ol = ctx.respLen
-  copyMem(addr ctx.resp[ol], addr buf[0],buf.len)
-  ctx.respLen += body.len
+  buf.shallowcopy(res.resp)
 
-proc mofuwWrite*(ctx: MofuwCtx) {.async.} =
   # try send because raise exception.
   # buffer not protect, but
   # mofuwReq have buffer, so this is safe.(?)
   when defined ssl:
-    if unlikely ctx.isSSL:
-      let fut = asyncSSLSend(ctx, addr(ctx.resp[0]), ctx.respLen)
+    if unlikely res.isSSL:
+      let fut = asyncSSLSend(res, addr(buf[0]), buf.len)
       yield fut
       if fut.failed:
-        ctx.mofuwClose()
-      ctx.resp.setLen(0)
+        res.mofuwClose()
+      res.resp.setLen(0)
       return
 
-  let fut = send(ctx.fd, addr(ctx.resp[0]), ctx.respLen)
+  let fut = send(res.fd, addr(buf[0]), buf.len)
   yield fut
   if fut.failed:
-    ctx.mofuwClose()
-  ctx.respLen = 0
+    res.mofuwClose()
+  res.resp.setLen(0)
+
+proc mofuwSend*(res: mofuwRes, body: string) {.async.} =
+  var b: string
+  b.shallowcopy(body)
+
+  let ol = res.resp.len
+  res.resp.setLen(ol+body.len)
+  copyMem(addr res.resp[ol], addr b[0], body.len)
 
 template mofuwResp*(status, mime, body: string): typed =
-  asyncCheck ctx.mofuwSend(makeResp(
+  asyncCheck res.mofuwSend(makeResp(
     status,
     mime,
     body))
 
+# ##
+# return HTTP200
+# ##
 template mofuwOK*(body: string, mime: string = "text/plain") =
   mofuwResp(
     HTTP200,

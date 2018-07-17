@@ -5,12 +5,9 @@ routes:
     mofuwOK("Hello, World!")
 
   get "/user/{id}":
-    mofuwOK("Hello, " & ctx.params("id") & "!")
+    mofuwOK("Hello, " & req.params("id") & "!")
 
   post "/create":
-    mofuwOK("created: " & ctx.body)
+    mofuwOK("created: " & req.body)
 
-newServeCtx(
-  port = 8080,
-  handler = mofuwHandler
-).serve()
+mofuwRun(8080)

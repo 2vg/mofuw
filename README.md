@@ -15,10 +15,6 @@ By default, routing is built in and it is possible to start developing Web appli
 
 mofuw places emphasis on compatibility between usability and performance.
 
-**Please make sure that mofuw will be redesigned considerably.**
-
-**it will be different from the previous one.**
-
 ## Feature
 - cross platform(Windows, macOS, Linux)
 - high-performance
@@ -29,8 +25,6 @@ mofuw places emphasis on compatibility between usability and performance.
 - support SSL
 - support HTTP pipeline / HTTP Streaming
 - support WebSocket
-- support virtual host, multi SSL
-- support multi port server
 - zero copy parser
 - Easy API, create Web Application or extended Web server
 - multi-thread event-loop
@@ -105,18 +99,28 @@ you can use "import mofuw". this only.
 minimal example is this 👇
 
 ```nim
-import ../../src/mofuw
+import mofuw
 
-proc handler(ctx: MofuwCtx) {.async.} =
-  if ctx.getPath == "/":
-    mofuwOK("Hello, World!")
+routes:
+  get "/":
+    mofuwOK("Hello, World")
+
+mofuwRun() # default listening port: 8080
+```
+
+or, you can use your own handler.
+
+```nim
+import mofuw
+
+mofuwHandler:
+  if req.getMethod == "GET":
+    if req.getPath == "/":
+      mofuwOK("Hello, World")
   else:
-    mofuwResp(HTTP404, "tet/plain", "Not Found")
+    res.mofuwSend(notFound())
 
-newServeCtx(
-  port = 8080,
-  handler = handler
-).serve()
+mofuwHandler.mofuwRun(8080)
 ```
 
 W O W, super E A S Y !!!!!! AMAZING !!!!!!!
@@ -140,6 +144,6 @@ I am looking for someone who develops mofuw together.
 Especially if there are people who can speed up and refactor it is the best!
 
 ## Special Thanks
-- [jester](https://github.com/dom96/jester) (using jester's utils, and study macro)
+- [jester](https://github.com/dom96/jester) (using jester's pattern and utils, and study macro)
 - [kubo39](https://github.com/kubo39) (awesome... backlog proc, fix somaxconn, and more. super thx!)
 - Thanks a lot dom96, and all Nimmers !
