@@ -77,6 +77,9 @@ proc runServer*(ctx: ServeCtx, isSSL = false) {.thread.} =
     waitFor ctx.mofuwServe(false)
 
 proc serve*(ctx: ServeCtx) =
+  if ctx.handler.isNil:
+    raise newException(Exception, "Callback is nil. please set callback.")
+
   for _ in 0 ..< countCPUs():
     spawn ctx.runServer(ctx.isSSL)
 
