@@ -4,6 +4,7 @@ import os, macros, strtabs, strutils, parseutils,
        mimetypes, asyncdispatch, asyncfile
 
 from httpcore import HttpHeaders
+import etags
 
 proc getMethod*(ctx: MofuwCtx): string {.inline.} =
   result = getMethod(ctx.mhr)
@@ -244,7 +245,7 @@ proc fileResp(ctx: MofuwCtx, filePath, file: string) {.async.}=
   if ext == "":
     await ctx.mofuwSend(makeResp(
       HTTP200,
-      "text/plain",
+      "text/plain" & (if etagEnabled : "\c\lEtag:" & filePath.getEtag else :"" ),
       file
     ))
   else:
@@ -252,7 +253,7 @@ proc fileResp(ctx: MofuwCtx, filePath, file: string) {.async.}=
 
     await ctx.mofuwSend(makeResp(
       HTTP200,
-      mime.getMimetype(ext[1 .. ^1], default = "application/octet-stream"),
+      mime.getMimetype(ext[1 .. ^1], default = "application/octet-stream") & (if etagEnabled : "\c\lEtag:" & filePath.getEtag else :"" ),
       file
     ))
 
@@ -288,6 +289,14 @@ proc staticServe*(ctx: MofuwCtx, rootPath: string): Future[bool] {.async.} =
 
       return true
     if fileExists(filePath):
+
+      # etag
+      if etagEnabled :
+        let etag = ctx.getHeader("If-None-Match")
+        if not isModifiedEtagWithUpdate(filePath, etag) :
+          await ctx.mofuwSend(makeResp(HTTP304,"","") )
+          return true
+
       let
         f = openAsync(filePath, fmRead)
         file = await f.readAll()
@@ -299,6 +308,14 @@ proc staticServe*(ctx: MofuwCtx, rootPath: string): Future[bool] {.async.} =
   else:
     filePath.add("index.html")
     if fileExists(filePath):
+
+      # etag
+      if etagEnabled :
+        let etag = ctx.getHeader("If-None-Match")
+        if not isModifiedEtagWithUpdate(filePath, etag) :
+          await ctx.mofuwSend(makeResp(HTTP304,"","") )
+          return true
+
       let
         f = openAsync(filePath, fmRead)
         file = await f.readAll()
