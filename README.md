@@ -26,10 +26,11 @@ mofuw places emphasis on compatibility between usability and performance.
 - Asynchronous I/O
 - builtin routing
 - support static file serving
-- ~~support SSL~~ breaking now, fix sool
+- support SSL
 - support HTTP pipeline / HTTP Streaming
 - support WebSocket
-- support virtual host~~, multi SSL~~
+- support virtual host, multi SSL
+- support multi port server
 - zero copy parser
 - Easy API, create Web Application or extended Web server
 - multi-thread event-loop
