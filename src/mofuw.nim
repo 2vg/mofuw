@@ -16,5 +16,5 @@ when defined(vhost):
   import critbits
   export critbits
 
-import private/[ctx, ctxpool, newhandler, newhttp, newio, newserver]
-export ctx, ctxpool, newhandler, newhttp, newio, newserver
+import private/[ctx, ctxpool, handler, http, io, server]
+export ctx, http, io, server

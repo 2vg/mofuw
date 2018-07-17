@@ -1,6 +1,82 @@
-import core, io
+import ctx, io
 import mofuparser, mofuhttputils
-import os, macros, strutils, mimetypes, asyncdispatch, asyncfile
+import os, macros, strtabs, strutils, parseutils,
+       mimetypes, asyncdispatch, asyncfile
+
+from httpcore import HttpHeaders
+
+proc getMethod*(ctx: MofuwCtx): string {.inline.} =
+  result = getMethod(ctx.mhr)
+
+proc getPath*(ctx: MofuwCtx): string {.inline.} =
+  result = getPath(ctx.mhr)
+
+proc getCookie*(ctx: MofuwCtx): string {.inline.} =
+  result = getHeader(ctx.mhr, "Cookie")
+
+proc getHeader*(ctx: MofuwCtx, name: string): string {.inline.} =
+  result = getHeader(ctx.mhr, name)
+
+proc toHttpHeaders*(ctx: MofuwCtx): HttpHeaders {.inline.} =
+  result = ctx.mhr.toHttpHeaders()
+
+proc setParam*(ctx: MofuwCtx, params: StringTableRef) {.inline.} =
+  ctx.uriParams = params
+
+proc setQuery*(ctx: MofuwCtx, query: StringTableRef) {.inline.} =
+  ctx.uriQuerys = query
+
+proc params*(ctx: MofuwCtx, key: string): string =
+  if ctx.uriParams.isNil: return nil
+  ctx.uriParams.getOrDefault(key)
+
+proc query*(ctx: MofuwCtx, key: string): string =
+  if ctx.uriQuerys.isNil: return nil
+  ctx.uriQuerys.getOrDefault(key)
+
+proc bodyParse*(query: string):StringTableRef {.inline.} =
+  result = {:}.newStringTable
+  var i = 0
+  while i < query.len()-1:
+    var key = ""
+    var val = ""
+    i += query.parseUntil(key, '=', i)
+    if query[i] != '=':
+      raise newException(ValueError, "Expected '=' at " & $i &
+                         " but got: " & $query[i])
+    inc(i) # Skip =
+    i += query.parseUntil(val, '&', i)
+    inc(i) # Skip &
+    result[key] = val
+
+# ##
+# get body
+# req.body -> all body
+# req.body("user") -> get body query "user"
+# ##
+proc body*(ctx: MofuwCtx, key: string = nil): string =
+  if key.isNil: return $ctx.buf[ctx.bodyStart ..< ctx.bufLen]
+  if ctx.bodyParams.isNil: ctx.bodyParams = ctx.body.bodyParse
+  ctx.bodyParams.getOrDefault(key)
+
+proc notFound*(ctx: MofuwCtx) {.async.} =
+  await mofuwSend(ctx, notFound())
+  await ctx.mofuwWrite()
+
+proc badRequest*(ctx: MofuwCtx) {.async.} =
+  await mofuwSend(ctx, badRequest())
+  await ctx.mofuwWrite()
+
+proc bodyTooLarge*(ctx: MofuwCtx) {.async.} =
+  await mofuwSend(ctx, bodyTooLarge())
+  await ctx.mofuwWrite()
+
+proc badGateway*(ctx: MofuwCtx) {.async.} =
+  await mofuwSend(ctx, makeResp(
+    HTTP502,
+    "text/plain",
+    "502 Bad Gateway"))
+  await ctx.mofuwWrite()
 
 type
   ReqState* = enum
@@ -9,14 +85,11 @@ type
     continueReq,
     endReq
 
-# ##
-# return ReqState
-# ##
 proc doubleCRLFCheck*(ctx: MofuwCtx): ReqState =
   # ##
   # parse request
   # ##
-  let bodyStart = ctx.mhr.mpParseRequest(addr ctx.buf[0], ctx.buf.len)
+  let bodyStart = ctx.mhr.mpParseRequest(addr ctx.buf[ctx.currentBufPos], ctx.bufLen - 1)
 
   # ##
   # found HTTP Method, return
@@ -30,8 +103,9 @@ proc doubleCRLFCheck*(ctx: MofuwCtx): ReqState =
     # ##
     # check \r\l\r\l
     # ##
-    if ctx.buf[^1] == '\l' and ctx.buf[^2] == '\r' and
-       ctx.buf[^3] == '\l' and ctx.buf[^4] == '\r':
+    let last = ctx.bufLen
+    if ctx.buf[last-1] == '\l' and ctx.buf[last-2] == '\r' and
+       ctx.buf[last-3] == '\l' and ctx.buf[last-4] == '\r':
       # ##
       # if not bodyStart > 0, request is invalid.
       # ##
@@ -60,7 +134,7 @@ proc doubleCRLFCheck*(ctx: MofuwCtx): ReqState =
              ctx.buf.lenCheck(i+3) == '\l':
             # ##
             # Even if it ends with \r\l\r\l,
-            # it is an illegal request because the method is empty
+            # but it is an illegal request because the method is empty
             # ##
             return badReq
 
@@ -75,7 +149,7 @@ proc doubleCRLFCheck*(ctx: MofuwCtx): ReqState =
     # ##
     # ctx.buf.len - bodyStart = request body size
     # ##
-    if unlikely(ctx.buf.len - bodyStart > getMaxBodySize()):
+    if unlikely(ctx.buf.len - bodyStart > 0):
       return bodyLarge
     else:
       # ##
@@ -103,37 +177,59 @@ proc contentLengthCheck*(ctx: MofuwCtx): int =
     # ##
     return -2
 
-proc saveBuffer*(r: int, ctx: MofuwCtx, buf: pointer) =
-  let ol = ctx.buf.len
-  ctx.buf.setLen(ol+r)
-  copyMem(addr ctx.buf[ol], buf, r)
+proc haveBodyHandler*(ctx: MofuwCtx, handler: MofuwHandler): Future[bool] {.async.} =
+  let hasContentLength = ctx.contentLengthCheck()
+  if hasContentLength != -2:
+    if hasContentLength != -1:
+      while not(ctx.bufLen - ctx.bodyStart >= hasContentLength):
+        let rcv = await ctx.mofuwRead()
+        if rcv == 0: ctx.mofuwClose(); return false
+      await handler(ctx)
+      return true
+    else:
+      # TODO: Content-Length error.
+      discard
+  elif ctx.getHeader("Transfer-Encoding") == "chunked":
+    ctx.mc = MPchunk()
+    # Parsing chunks already in the buffer
+    var chunkBuf = ctx.body[0]
+    var chunkLen = ctx.bufLen - ctx.bodyStart
+    var parseRes = ctx.mc.mpParseChunk(addr chunkBuf, chunkLen)
 
-template mofuwCallback*(ctx: MofuwCtx): untyped =
-  block:
-    # TODO: timeout.
-    let fut = getCallback()(ctx)
-    yield fut
-    if fut.failed:
-      # TODO: error check.
-      let fut = ctx.badGateway()
-      fut.callback = proc() =
-        ctx.mofuwClose()
-      return
+    if parseRes == -1:
+      await ctx.badRequest()
+      ctx.mofuwClose()
+      return false
 
-proc notFound*(ctx: MofuwCtx) {.async.} =
-  await mofuwSend(ctx, notFound())
+    ctx.bufLen = ctx.bodyStart + chunkLen
 
-proc badRequest*(ctx: MofuwCtx) {.async.} =
-  await mofuwSend(ctx, badRequest())
+    await handler(ctx)
 
-proc bodyTooLarge*(ctx: MofuwCtx) {.async.} =
-  await mofuwSend(ctx, bodyTooLarge())
+    if parseRes == -2:
+      while true:
+        chunkBuf = ctx.body[ctx.bufLen]
+        chunkLen = await ctx.mofuwRead()
+        let pRes = ctx.mc.mpParseChunk(addr chunkBuf, chunkLen)
+        case pRes
+        of -2:
+          ctx.bufLen = ctx.bodyStart + chunkLen
+          await handler(ctx)
+        of -1:
+          await ctx.badRequest()
+          ctx.mofuwClose()
+          return false
+        else:
+          if parseRes != 2:
+            discard await ctx.mofuwRead()
+          await handler(ctx)
+          break
 
-proc badGateway*(ctx: MofuwCtx) {.async.} =
-  await mofuwSend(ctx, makeResp(
-    HTTP502,
-    "text/plain",
-    "502 Bad Gateway"))
+    ctx.bufLen = 0
+    return true
+  else:
+    await ctx.badRequest()
+    ctx.mofuwClose()
+    return false
 
 proc fileResp(ctx: MofuwCtx, filePath, file: string) {.async.}=
   let (_, _, ext) = splitFile(filePath)

@@ -12,7 +12,7 @@ type
     readBufferSize*, writeBufferSize*: int
     timeout*: int
     poolsize*: int
-    handler*: MofuwHandler
+    handler*, hookrequest*, hookresponse*: MofuwHandler
     vhostTbl*: VhostTable
     when defined ssl:
       sslCtxTbl*: CritBitTree[SslCtx]

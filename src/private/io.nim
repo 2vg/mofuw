@@ -1,70 +1,58 @@
-import core
+import ctx, ctxpool
+import mofuhttputils
 import asyncdispatch
 
-# ##
-# close socket template
-# ##
-template mofuwClose*(ctx: MofuwCtx) =
+when defined ssl: import ssl
+
+proc mofuwClose*(ctx: MofuwCtx) =
+  closeSocket(ctx.fd)
   when defined ssl:
-    try:
-      closeSocket(ctx.fd)
-    except:
-      # TODO send error logging
-      discard
     if unlikely ctx.isSSL:
       discard ctx.sslHandle.SSLShutdown()
       ctx.sslHandle.SSLFree()
-  else:
-    try:
-      closeSocket(ctx.fd)
-    except:
-      # TODO send error logging
-      discard
+  ctx.freeCtx()
 
-# ##
-# recv template
-# ##
-template mofuwRecvInto*(ctx: MofuwCtx, buf: pointer, bufLen: int): untyped =
+proc mofuwRead*(ctx: MofuwCtx): Future[int] {.async.} =
+  let rcvLimit = ctx.buf.len - ctx.bufLen
+  if rcvLimit == 0: ctx.buf.setLen(ctx.buf.len + ctx.buf.len)
+
   when defined ssl:
-    if ctx.isSSL:
-      asyncSSLrecv(ctx, cast[ptr char](buf), bufLen)
-    else:
-      recvInto(ctx.fd, buf, bufLen)
-  else:
-    recvInto(ctx.fd, buf, bufLen)
+    if unlikely ctx.isSSL:
+      let rcv = await asyncSSLrecv(ctx, addr ctx.buf[ctx.bufLen], rcvLimit)
+      ctx.bufLen += rcv
+      return rcv
 
-# ##
-# main send proc
-# ##
-proc mofuwWrite*(ctx: MofuwCtx) {.async.} =
+  let rcv = await recvInto(ctx.fd, addr ctx.buf[ctx.bufLen], rcvLimit)
+  ctx.bufLen += rcv
+  return rcv
+
+proc mofuwSend*(ctx: MofuwCtx, body: string) {.async.} =
+  if unlikely ctx.respLen + body.len > ctx.resp.len:
+    ctx.resp.setLen(ctx.resp.len + ctx.resp.len)
   var buf: string
-  buf.shallowcopy(ctx.resp)
+  buf.shallowcopy(body)
+  let ol = ctx.respLen
+  copyMem(addr ctx.resp[ol], addr buf[0],buf.len)
+  ctx.respLen += body.len
 
+proc mofuwWrite*(ctx: MofuwCtx) {.async.} =
   # try send because raise exception.
   # buffer not protect, but
   # mofuwReq have buffer, so this is safe.(?)
   when defined ssl:
     if unlikely ctx.isSSL:
-      let fut = asyncSSLSend(ctx, addr(buf[0]), buf.len)
+      let fut = asyncSSLSend(ctx, addr(ctx.resp[0]), ctx.respLen)
       yield fut
       if fut.failed:
         ctx.mofuwClose()
       ctx.resp.setLen(0)
       return
 
-  let fut = send(ctx.fd, addr(buf[0]), buf.len)
+  let fut = send(ctx.fd, addr(ctx.resp[0]), ctx.respLen)
   yield fut
   if fut.failed:
     ctx.mofuwClose()
-  ctx.resp.setLen(0)
-
-proc mofuwSend*(ctx: MofuwCtx, body: string) {.async.} =
-  var b: string
-  b.shallowcopy(body)
-
-  let ol = ctx.resp.len
-  ctx.resp.setLen(ol+body.len)
-  copyMem(addr ctx.resp[ol], addr b[0], body.len)
+  ctx.respLen = 0
 
 template mofuwResp*(status, mime, body: string): typed =
   asyncCheck ctx.mofuwSend(makeResp(
@@ -72,9 +60,6 @@ template mofuwResp*(status, mime, body: string): typed =
     mime,
     body))
 
-# ##
-# return HTTP200
-# ##
 template mofuwOK*(body: string, mime: string = "text/plain") =
   mofuwResp(
     HTTP200,

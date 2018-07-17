@@ -21,7 +21,7 @@ macro mofuwLambda(body: untyped): untyped =
   result = newStmtList()
 
   let lam = newNimNode(nnkLambda).add(
-    ident"mofuwHandler",newEmptyNode(),newEmptyNode(),
+    newEmptyNode(),newEmptyNode(),newEmptyNode(),
     newNimNode(nnkFormalParams).add(
       newEmptyNode(),
       newIdentDefs(ident"ctx", ident"MofuwCtx")
@@ -166,7 +166,7 @@ when defined vhost:
 
     var handler = quote do:
       let header = ctx.getHeader("Host")
-      let table = getCallBackTable()
+      let table = ctx.getCallBackTable()
       if table.hasKey(header):
         await table[header](ctx)
       else:
