@@ -15,6 +15,10 @@ By default, routing is built in and it is possible to start developing Web appli
 
 mofuw places emphasis on compatibility between usability and performance.
 
+**Please make sure that mofuw will be redesigned considerably.**
+
+**it will be different from the previous one.**
+
 ## Feature
 - cross platform(Windows, macOS, Linux)
 - high-performance
@@ -22,10 +26,10 @@ mofuw places emphasis on compatibility between usability and performance.
 - Asynchronous I/O
 - builtin routing
 - support static file serving
-- support SSL
+- ~~support SSL~~ breaking now, fix sool
 - support HTTP pipeline / HTTP Streaming
 - support WebSocket
-- support virtual host, multi SSL
+- support virtual host~~, multi SSL~~
 - zero copy parser
 - Easy API, create Web Application or extended Web server
 - multi-thread event-loop
@@ -100,28 +104,18 @@ you can use "import mofuw". this only.
 minimal example is this 👇
 
 ```nim
-import mofuw
+import ../../src/mofuw
 
-routes:
-  get "/":
-    mofuwOK("Hello, World")
-
-mofuwRun() # default listening port: 8080
-```
-
-or, you can use your own handler.
-
-```nim
-import mofuw
-
-mofuwHandler:
-  if ctx.getMethod == "GET":
-    if ctx.getPath == "/":
-      mofuwOK("Hello, World")
+proc handler(ctx: MofuwCtx) {.async.} =
+  if ctx.getPath == "/":
+    mofuwOK("Hello, World!")
   else:
-    res.mofuwSend(notFound())
+    mofuwResp(HTTP404, "tet/plain", "Not Found")
 
-mofuwHandler.mofuwRun(8080)
+newServeCtx(
+  port = 8080,
+  handler = handler
+).serve()
 ```
 
 W O W, super E A S Y !!!!!! AMAZING !!!!!!!
