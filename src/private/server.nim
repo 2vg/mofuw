@@ -56,8 +56,8 @@ proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
       cantaccept = true
 
     try:
-      let (address, client) = await acceptAddr(server)
-      let mCtx = getCtx(ctx.readBufferSize, ctx.writeBuffersize).initCtx(client, address)
+      let data = await acceptAddr(server)
+      let mCtx = getCtx(ctx.readBufferSize, ctx.writeBuffersize).initCtx(data[1], data[0])
       setCallBackTable(ctx, mCtx)
       mCtx.maxBodySize = ctx.maxBodySize
       when defined ssl:
