@@ -6,7 +6,7 @@ proc handler*(servectx: ServeCtx, ctx: MofuwCtx) {.async.} =
     let rcv = await ctx.mofuwRead()
     if rcv == 0: ctx.mofuwClose(); return
     # buffer is full, request is progress
-    if rcv == (ctx.buf.len - ctx.bufLen): continue
+    if unlikely(ctx.buf.len == ctx.bufLen): continue
 
     case ctx.doubleCRLFCheck()
     of badReq:
