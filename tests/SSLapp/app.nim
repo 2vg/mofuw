@@ -10,10 +10,9 @@ sslServer.addCertAndKey(
   key = "key.pem"
 )
 
-block:
-  vhosts sslServer:
-    host "example.com":
-      mofuwOK("Hello, World!")
+vhosts sslServer:
+  host "example.com":
+    mofuwOK("Hello, World!")
 
 let httpServer = newServeCtx(
   port = 80
