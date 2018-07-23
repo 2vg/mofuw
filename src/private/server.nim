@@ -28,7 +28,7 @@ proc newServerSocket*(port: int): SocketHandle =
   server.getFD().setSockOptInt(cint(IPPROTO_TCP), TCP_NODELAY, 1)
   server.getFd.setBlocking(false)
   server.bindAddr(Port(port))
-  server.listen(defaultBacklog().cint)
+  server.listen()#defaultBacklog().cint)
   return server.getFd()
 
 proc initCtx*(servectx: ServeCtx, ctx: MofuwCtx, fd: AsyncFD, ip: string): MofuwCtx =
