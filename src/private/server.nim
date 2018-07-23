@@ -31,12 +31,14 @@ proc newServerSocket*(port: int): SocketHandle =
   server.listen(defaultBacklog().cint)
   return server.getFd()
 
-proc initCtx*(ctx: MofuwCtx, fd: AsyncFD, ip: string): MofuwCtx =
+proc initCtx*(servectx: ServeCtx, ctx: MofuwCtx, fd: AsyncFD, ip: string): MofuwCtx =
   ctx.fd = fd
   ctx.ip = ip
   ctx.bufLen = 0
   ctx.respLen = 0
   ctx.currentBufPos = 0
+  if unlikely ctx.buf.len != servectx.readBufferSize: ctx.buf.setLen(servectx.readBufferSize)
+  if unlikely ctx.resp.len != servectx.writeBufferSize: ctx.buf.setLen(servectx.writeBufferSize)
   ctx
 
 proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
@@ -57,7 +59,7 @@ proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
 
     try:
       let data = await acceptAddr(server)
-      let mCtx = getCtx(ctx.readBufferSize, ctx.writeBuffersize).initCtx(data[1], data[0])
+      let mCtx = ctx.initCtx(getCtx(ctx.readBufferSize, ctx.writeBuffersize), data[1], data[0])
       setCallBackTable(ctx, mCtx)
       mCtx.maxBodySize = ctx.maxBodySize
       when defined ssl:
