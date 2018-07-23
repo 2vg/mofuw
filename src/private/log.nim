@@ -1,4 +1,4 @@
-import core
+import ctx, http
 import times, json, strutils
 
 proc nowDateTime: (string, string) =
