@@ -70,7 +70,7 @@ proc mofuwWrite*(ctx: MofuwCtx) {.async.} =
       yield fut
       if fut.failed:
         ctx.mofuwClose()
-      ctx.resp.setLen(0)
+      ctx.respLen = 0
       return
 
   let fut = send(ctx.fd, addr(ctx.resp[0]), ctx.respLen)
