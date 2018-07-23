@@ -38,8 +38,11 @@ proc mofuwClose*(ctx: MofuwCtx) =
   ctx.freeCtx()
 
 proc mofuwRead*(ctx: MofuwCtx): Future[int] {.async.} =
-  let rcvLimit = ctx.buf.len - ctx.bufLen
-  if rcvLimit == 0: ctx.buf.setLen(ctx.buf.len + ctx.buf.len)
+  let rcvLimit =
+    block:
+      if unlikely(ctx.buf.len - ctx.bufLen == 0):
+        ctx.buf.setLen(ctx.buf.len + ctx.buf.len)
+      ctx.buf.len - ctx.bufLen
 
   when defined ssl:
     if unlikely ctx.isSSL:
@@ -57,7 +60,7 @@ proc mofuwSend*(ctx: MofuwCtx, body: string) {.async.} =
   var buf: string
   buf.shallowcopy(body)
   let ol = ctx.respLen
-  copyMem(addr ctx.resp[ol], addr buf[0],buf.len)
+  copyMem(addr ctx.resp[ol], addr buf[0], buf.len)
   ctx.respLen += body.len
 
 proc mofuwWrite*(ctx: MofuwCtx) {.async.} =
