@@ -54,11 +54,12 @@ proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
 
   while true:
     if unlikely cantaccept:
-      await sleepAsync(10)
+      await sleepAsync(1)
       cantaccept = true
 
     try:
       let data = await acceptAddr(server)
+      data[1].SocketHandle.setBlocking(false)
       let mCtx = ctx.initCtx(getCtx(ctx.readBufferSize, ctx.writeBuffersize), data[1], data[0])
       setCallBackTable(ctx, mCtx)
       mCtx.maxBodySize = ctx.maxBodySize
