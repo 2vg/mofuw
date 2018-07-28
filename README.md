@@ -15,19 +15,25 @@ By default, routing is built in and it is possible to start developing Web appli
 
 mofuw places emphasis on compatibility between usability and performance.
 
-Although it is already used in business and almost stable, the some function as an HTTP server is incomplete,
+**Please make sure that mofuw will be redesigned considerably.**
 
-so please be careful when using it.
+**it will be different from the previous one.**
 
 ## Feature
 - cross platform(Windows, macOS, Linux)
 - high-performance
 - low used memory
-- used backend is Nim's asyncdispatch, so all is Asynchronous I/O :)
-- my parser is implement like [picohttpparser](https://github.com/h2o/picohttpparser), so Zero-Copy, ultra fast parsing... yeah, fast may
-- Easy API, create Web Application, create an extended Web server
-- multi-thread event-loop
+- Asynchronous I/O
+- builtin routing
+- support static file serving
+- support SSL
+- support HTTP pipeline / HTTP Streaming
 - support WebSocket
+- support virtual host, multi SSL
+- support multi port server
+- zero copy parser
+- Easy API, create Web Application or extended Web server
+- multi-thread event-loop
 
 ## Build Status
 
@@ -99,28 +105,18 @@ you can use "import mofuw". this only.
 minimal example is this 👇
 
 ```nim
-import mofuw
+import ../../src/mofuw
 
-routes:
-  get "/":
-    mofuwOK("Hello, World")
-
-mofuwRun() # default listening port: 8080
-```
-
-or, you can use your own handler.
-
-```nim
-import mofuw
-
-mofuwHandler:
-  if req.getMethod == "GET":
-    if req.getPath == "/":
-      mofuwOK("Hello, World")
+proc handler(ctx: MofuwCtx) {.async.} =
+  if ctx.getPath == "/":
+    mofuwOK("Hello, World!")
   else:
-    res.mofuwSend(notFound())
+    mofuwResp(HTTP404, "tet/plain", "Not Found")
 
-mofuwHandler.mofuwRun(8080)
+newServeCtx(
+  port = 8080,
+  handler = handler
+).serve()
 ```
 
 W O W, super E A S Y !!!!!! AMAZING !!!!!!!
@@ -136,14 +132,6 @@ Update(2018 - 06 - 11): mofuw is 24th on json tests :3 [techempowerRound16/JSON 
 
 Update(2018 - 04 - 07): mofuw is very fast :) [tbrand/which_is_the_fastest Issue#104](https://github.com/tbrand/which_is_the_fastest/issues/101#issuecomment-379293774)
 
-## Todo
-- [x] ~~header make proc(?)~~
-- [x] Cache (memory buffer ? collab with redis ?)
-- [ ] delete cache with timer;
-- [x] ~~File response (will soon complete)~~
-- [x] ~~routing (now support GET, POST, PATCH, PUT, DELETE, OPTIONS only, want to finish it early)~~
-- [x] ~~multi-thread (this need ?)~~
-
 ## Contribute
 **Pull requests are welcome !!!!!**
 
@@ -152,6 +140,6 @@ I am looking for someone who develops mofuw together.
 Especially if there are people who can speed up and refactor it is the best!
 
 ## Special Thanks
-- [jester](https://github.com/dom96/jester) (using jester's pattern and utils, and study macro)
+- [jester](https://github.com/dom96/jester) (using jester's utils, and study macro)
 - [kubo39](https://github.com/kubo39) (awesome... backlog proc, fix somaxconn, and more. super thx!)
 - Thanks a lot dom96, and all Nimmers !

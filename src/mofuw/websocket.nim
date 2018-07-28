@@ -1,3 +1,3 @@
-import asyncdispatch, private/websocket/[shared, server]
+import asyncdispatch, private/websocket/[wsshared, wsserver]
 
-export shared, server
+export wsshared, wsserver
