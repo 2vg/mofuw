@@ -38,6 +38,8 @@ proc mofuwClose*(ctx: MofuwCtx) =
   ctx.freeCtx()
 
 proc mofuwRead*(ctx: MofuwCtx, timeOut = 30): Future[int] {.async.} =
+  let timeOut = timeOut * 1000
+
   let rcvLimit =
     block:
       if unlikely(ctx.buf.len - ctx.bufLen == 0):
