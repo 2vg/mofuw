@@ -37,7 +37,7 @@ proc mofuwClose*(ctx: MofuwCtx) =
       ctx.sslHandle.SSLFree()
   ctx.freeCtx()
 
-proc mofuwRead*(ctx: MofuwCtx, timeOut = 30 * 1000): Future[int] {.async.} =
+proc mofuwRead*(ctx: MofuwCtx): Future[int] {.async.} =
   let rcvLimit =
     block:
       if unlikely(ctx.buf.len - ctx.bufLen == 0):
@@ -46,15 +46,11 @@ proc mofuwRead*(ctx: MofuwCtx, timeOut = 30 * 1000): Future[int] {.async.} =
 
   when defined ssl:
     if unlikely ctx.isSSL:
-      let fut = asyncSSLrecv(ctx, addr ctx.buf[ctx.bufLen], rcvLimit)
-      let isSuccess = await withTimeout(fut, timeOut)
-      let rcv = if isSuccess: fut.read else: 0
+      let rcv = await asyncSSLrecv(ctx, addr ctx.buf[ctx.bufLen], rcvLimit)
       ctx.bufLen += rcv
       return rcv
 
-  let fut = recvInto(ctx.fd, addr ctx.buf[ctx.bufLen], rcvLimit)
-  let isSuccess = await withTimeout(fut, timeOut)
-  let rcv = if isSuccess: fut.read else: 0
+  let rcv = await recvInto(ctx.fd, addr ctx.buf[ctx.bufLen], rcvLimit)
   ctx.bufLen += rcv
   return rcv
 
