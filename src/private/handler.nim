@@ -3,7 +3,7 @@ import asyncdispatch
 
 proc handler*(servectx: ServeCtx, ctx: MofuwCtx) {.async.} =
   while true:
-    let rcv = await ctx.mofuwRead()
+    let rcv = await ctx.mofuwRead(servectx.timeOut)
     if rcv == 0: ctx.mofuwClose(); return
     # buffer is full, request is progress
     if unlikely(ctx.buf.len == ctx.bufLen): continue

@@ -37,7 +37,7 @@ proc mofuwClose*(ctx: MofuwCtx) =
       ctx.sslHandle.SSLFree()
   ctx.freeCtx()
 
-proc mofuwRead*(ctx: MofuwCtx, timeOut = 30 * 1000): Future[int] {.async.} =
+proc mofuwRead*(ctx: MofuwCtx, timeOut: int): Future[int] {.async.} =
   let rcvLimit =
     block:
       if unlikely(ctx.buf.len - ctx.bufLen == 0):
