@@ -146,8 +146,8 @@ when defined ssl:
     discard ctx.sslCtx.SSL_CTX_set_tlsext_servername_callback(serverNameCallback)
     discard ctx.sslCtx.SSL_CTX_set_tlsext_servername_arg(addr serverctx.sslCtxTbl)
     ctx.sslHandle = SSLNew(ctx.sslCtx)
-    echo SSL_set_fd(ctx.sslHandle, ctx.fd.SocketHandle)
-    echo SSL_accept(ctx.sslHandle)
+    discard SSL_set_fd(ctx.sslHandle, ctx.fd.SocketHandle)
+    discard SSL_accept(ctx.sslHandle)
 
   proc addCertAndKey*(serverctx: ServeCtx, cert, key: string, serverName = "", verify = false) =
     let ctx =
