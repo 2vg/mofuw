@@ -43,8 +43,8 @@ proc bodyParse*(query: string):StringTableRef {.inline.} =
     var val = ""
     i += query.parseUntil(key, '=', i)
     if query[i] != '=':
-      raise newException(ValueError, "Expected '=' at " & $i &
-                         " but got: " & $query[i])
+      raise newException(
+        ValueError, "Expected '=' at " & $i & " but got: " & $query[i])
     inc(i) # Skip =
     i += query.parseUntil(val, '&', i)
     inc(i) # Skip &
