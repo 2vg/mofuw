@@ -28,11 +28,9 @@ proc setQuery*(ctx: MofuwCtx, query: StringTableRef) {.inline.} =
   ctx.uriQuerys = query
 
 proc params*(ctx: MofuwCtx, key: string): string =
-  if ctx.uriParams.isNil: return nil
   ctx.uriParams.getOrDefault(key)
 
 proc query*(ctx: MofuwCtx, key: string): string =
-  if ctx.uriQuerys.isNil: return nil
   ctx.uriQuerys.getOrDefault(key)
 
 proc bodyParse*(query: string):StringTableRef {.inline.} =
@@ -55,9 +53,9 @@ proc bodyParse*(query: string):StringTableRef {.inline.} =
 # req.body -> all body
 # req.body("user") -> get body query "user"
 # ##
-proc body*(ctx: MofuwCtx, key: string = nil): string =
-  if key.isNil: return $ctx.buf[ctx.bodyStart ..< ctx.bufLen]
-  if ctx.bodyParams.isNil: ctx.bodyParams = ctx.body.bodyParse
+proc body*(ctx: MofuwCtx, key: string = ""): string =
+  if key == "": return $ctx.buf[ctx.bodyStart ..< ctx.bufLen]
+  if ctx.bodyParams.len == 0: ctx.bodyParams = ctx.body.bodyParse
   ctx.bodyParams.getOrDefault(key)
 
 proc notFound*(ctx: MofuwCtx) {.async.} =
@@ -178,12 +176,12 @@ proc contentLengthCheck*(ctx: MofuwCtx): int =
     # ##
     return -2
 
-proc haveBodyHandler*(ctx: MofuwCtx, handler: MofuwHandler): Future[bool] {.async.} =
+proc haveBodyHandler*(ctx: MofuwCtx, serverctx: ServeCtx, handler: MofuwHandler): Future[bool] {.async.} =
   let hasContentLength = ctx.contentLengthCheck()
   if hasContentLength != -2:
     if hasContentLength != -1:
       while not(ctx.bufLen - ctx.bodyStart >= hasContentLength):
-        let rcv = await ctx.mofuwRead()
+        let rcv = await ctx.mofuwRead(serverctx.timeOut)
         if rcv == 0: ctx.mofuwClose(); return false
       await handler(ctx)
       asyncCheck ctx.mofuwWrite()
@@ -213,7 +211,7 @@ proc haveBodyHandler*(ctx: MofuwCtx, handler: MofuwHandler): Future[bool] {.asyn
     if parseRes == -2:
       while true:
         chunkBuf = ctx.body[ctx.bufLen]
-        chunkLen = await ctx.mofuwRead()
+        chunkLen = await ctx.mofuwRead(serverctx.timeOut)
         let pRes = ctx.mc.mpParseChunk(addr chunkBuf, chunkLen)
         case pRes
         of -2:
@@ -226,7 +224,7 @@ proc haveBodyHandler*(ctx: MofuwCtx, handler: MofuwHandler): Future[bool] {.asyn
           return false
         else:
           if parseRes != 2:
-            discard await ctx.mofuwRead()
+            discard await ctx.mofuwRead(serverctx.timeOut)
           await handler(ctx)
           await ctx.mofuwWrite()
           break

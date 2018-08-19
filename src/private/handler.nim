@@ -26,7 +26,7 @@ proc handler*(servectx: ServeCtx, ctx: MofuwCtx) {.async.} =
       let isGETorHEAD = (ctx.getMethod == "GET") or (ctx.getMethod == "HEAD")
 
       if not isGETorHEAD:
-        let res = await haveBodyHandler(ctx, servectx.handler)
+        let res = await haveBodyHandler(ctx, servectx, servectx.handler)
         if not res: return
         continue
 
