@@ -65,7 +65,7 @@ proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
       when defined ssl:
         if unlikely isSSL:
           mCtx.isSSL = true
-          ctx.toSSLSocket(mCtx)
+          if not ctx.toSSLSocket(mCtx): ctx.freeCtx(); continue
       asyncCheck handler(ctx, mCtx)
     except:
       # TODO async sleep.

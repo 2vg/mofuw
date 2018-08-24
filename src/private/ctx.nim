@@ -141,13 +141,16 @@ when defined ssl:
   # ##
   # normal fd to sslFD and accept
   # ##
-  proc toSSLSocket*(serverctx: ServeCtx, ctx: MofuwCtx) =
+  proc toSSLSocket*(serverctx: ServeCtx, ctx: MofuwCtx): bool =
+    result = true
+
     ctx.sslCtx = serverctx.sslCtxTbl[""]
     discard ctx.sslCtx.SSL_CTX_set_tlsext_servername_callback(serverNameCallback)
     discard ctx.sslCtx.SSL_CTX_set_tlsext_servername_arg(addr serverctx.sslCtxTbl)
     ctx.sslHandle = SSLNew(ctx.sslCtx)
     discard SSL_set_fd(ctx.sslHandle, ctx.fd.SocketHandle)
-    discard SSL_accept(ctx.sslHandle)
+    if SSL_accept(ctx.sslHandle) != 1: return false
+
 
   proc addCertAndKey*(serverctx: ServeCtx, cert, key: string, serverName = "", verify = false) =
     let ctx =

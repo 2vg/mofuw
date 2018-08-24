@@ -33,7 +33,9 @@ proc mofuwClose*(ctx: MofuwCtx) =
   closeSocket(ctx.fd)
   when defined ssl:
     if unlikely ctx.isSSL:
-      discard ctx.sslHandle.SSLShutdown()
+      var shutdown = ctx.sslHandle.SSLShutdown()
+      while shutdown == 0:
+        shutdown = ctx.sslHandle.SSLShutdown()
       ctx.sslHandle.SSLFree()
   ctx.freeCtx()
 
