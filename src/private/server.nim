@@ -7,6 +7,14 @@ when defined(windows):
 else:
   from posix import TCP_NODELAY
 
+  proc setCLOEXEC(s: SocketHandle) =
+    var x: int = fcntl(s, F_GETFL, 0)
+    if x == -1:
+      raiseOSError(osLastError())
+    else:
+      if fcntl(s, F_SETFL, O_CLOEXEC) == -1:
+        raiseOSError(osLastError())
+
 proc registerCallback*(ctx: ServeCtx, serverName: string, cb: MofuwHandler) =
   ctx.vhostTbl[serverName] = cb
   if not ctx.vhostTbl.hasKey(""): ctx.vhostTbl[""] = cb
@@ -28,7 +36,7 @@ proc newServerSocket*(port: int): SocketHandle =
   server.getFD().setSockOptInt(cint(IPPROTO_TCP), TCP_NODELAY, 1)
   server.getFd.setBlocking(false)
   server.bindAddr(Port(port))
-  server.listen()#defaultBacklog().cint)
+  server.listen(defaultBacklog().cint)
   return server.getFd()
 
 proc initCtx*(servectx: ServeCtx, ctx: MofuwCtx, fd: AsyncFD, ip: string): MofuwCtx =
@@ -60,6 +68,7 @@ proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
     try:
       let data = await acceptAddr(server)
       let mCtx = ctx.initCtx(getCtx(ctx.readBufferSize, ctx.writeBuffersize), data[1], data[0])
+      when not defined(windows): setCLOEXEC(mCtx.fd)
       setCallBackTable(ctx, mCtx)
       mCtx.maxBodySize = ctx.maxBodySize
       when defined ssl:
