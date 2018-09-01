@@ -30,13 +30,13 @@ when defined ssl:
     return retFuture
 
 proc mofuwClose*(ctx: MofuwCtx) =
-  closeSocket(ctx.fd)
   when defined ssl:
     if unlikely ctx.isSSL:
       var shutdown = ctx.sslHandle.SSLShutdown()
       while shutdown == 0:
         shutdown = ctx.sslHandle.SSLShutdown()
       ctx.sslHandle.SSLFree()
+  closeSocket(ctx.fd)
   ctx.freeCtx()
 
 proc mofuwRead*(ctx: MofuwCtx, timeOut: int): Future[int] {.async.} =
@@ -75,17 +75,17 @@ proc mofuwWrite*(ctx: MofuwCtx) {.async.} =
   # mofuwReq have buffer, so this is safe.(?)
   when defined ssl:
     if unlikely ctx.isSSL:
-      let fut = asyncSSLSend(ctx, addr(ctx.resp[0]), ctx.respLen)
-      yield fut
-      if fut.failed:
-        ctx.mofuwClose()
+      try:
+        discard await asyncSSLSend(ctx, addr(ctx.resp[0]), ctx.respLen)
+      except:
+        discard
       ctx.respLen = 0
       return
 
-  let fut = send(ctx.fd, addr(ctx.resp[0]), ctx.respLen)
-  yield fut
-  if fut.failed:
-    ctx.mofuwClose()
+  try:
+    await send(ctx.fd, addr(ctx.resp[0]), ctx.respLen)
+  except:
+    discard
   ctx.respLen = 0
 
 template mofuwResp*(status, mime, body: string): typed =

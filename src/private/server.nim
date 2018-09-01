@@ -1,19 +1,11 @@
 import io, ctx, ctxpool, handler, sysutils
 import mofuhttputils
-import net, critbits, nativesockets, asyncdispatch, threadpool
+import os, net, critbits, nativesockets, asyncdispatch, threadpool
 
 when defined(windows):
   from winlean import TCP_NODELAY
 else:
   from posix import TCP_NODELAY
-
-  proc setCLOEXEC(s: SocketHandle) =
-    var x: int = fcntl(s, F_GETFL, 0)
-    if x == -1:
-      raiseOSError(osLastError())
-    else:
-      if fcntl(s, F_SETFL, O_CLOEXEC) == -1:
-        raiseOSError(osLastError())
 
 proc registerCallback*(ctx: ServeCtx, serverName: string, cb: MofuwHandler) =
   ctx.vhostTbl[serverName] = cb
@@ -68,7 +60,6 @@ proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
     try:
       let data = await acceptAddr(server)
       let mCtx = ctx.initCtx(getCtx(ctx.readBufferSize, ctx.writeBuffersize), data[1], data[0])
-      when not defined(windows): setCLOEXEC(mCtx.fd)
       setCallBackTable(ctx, mCtx)
       mCtx.maxBodySize = ctx.maxBodySize
       when defined ssl:
