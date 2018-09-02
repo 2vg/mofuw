@@ -151,7 +151,6 @@ when defined ssl:
     discard SSL_set_fd(ctx.sslHandle, ctx.fd.SocketHandle)
     if SSL_accept(ctx.sslHandle) != 1: return false
 
-
   proc addCertAndKey*(serverctx: ServeCtx, cert, key: string, serverName = "", verify = false) =
     let ctx =
       if verify: newSSLContext(cert, key, CVerifyPeer)
