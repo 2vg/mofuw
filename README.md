@@ -9,6 +9,17 @@
 
 > ~~mofuw is **M**eccha hayai Asynchronous I/**O** no super **F**ast de **U**ltra minimal na **W**eb server on Nim.~~
 
+# **ANNOUNCE**
+
+## **I can not actively maintain mofuw anymore.**
+
+> **It is fun to pursue performance improvement like a [mofut](https://github.com/2vg/mofut).**
+> **I hope someone else will produce as much or even better thing as httpbeast.**
+> **If motivation returns, continue development. But it is not about mofuw, it will be completely new.**
+> \- @2vg
+
+> but, Pull requests for bugs and improvements are still welcome!
+
 mofuw is a high-performance web server (or web framework) made with Nim.
 
 By default, routing is built in and it is possible to start developing Web application immediately.
