@@ -49,7 +49,7 @@ proc newServeCtx*(servername = "mofuw", port: int,
                   hookrequest, hookresponse: MofuwHandler = nil,
                   readBufferSize, writeBufferSize = 4096,
                   maxBodySize = 1024 * 1024 * 5,
-                  timeout = 30 * 1000,
+                  timeout = -1,
                   poolsize = 128,
                   isSSL = false): ServeCtx =
   result = ServeCtx(
