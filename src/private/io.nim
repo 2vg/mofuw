@@ -47,7 +47,7 @@ proc mofuwRead*(ctx: MofuwCtx, timeOut: int): Future[int] {.async.} =
     if unlikely ctx.isSSL:
       let fut = asyncSSLrecv(ctx, addr ctx.buf[ctx.bufLen], rcvLimit)
       let rcv = 
-        if not timeOut == -1:
+      if timeOut > 0:
           let isSuccess = await withTimeout(fut, timeOut)
           if isSuccess: fut.read else: 0
         else:
@@ -57,7 +57,7 @@ proc mofuwRead*(ctx: MofuwCtx, timeOut: int): Future[int] {.async.} =
 
   let fut = recvInto(ctx.fd, addr ctx.buf[ctx.bufLen], rcvLimit)
   let rcv = 
-    if not timeOut == -1:
+    if timeOut > 0:
       let isSuccess = await withTimeout(fut, timeOut)
       if isSuccess: fut.read else: 0
     else:
