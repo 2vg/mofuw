@@ -255,6 +255,40 @@ proc fileResp(ctx: MofuwCtx, filePath, file: string) {.async.}=
       file
     ))
 
+proc mofuwReadFile*(ctx: MofuwCtx, filePath: string) {.async.} =
+  let
+    f = openAsync(filePath, fmRead)
+    fileSize = getFileSize(filePath)
+    (_, _, ext) = splitFile(filePath)
+
+  if fileSize > 1024 * 1024 * 5:
+    var i = fileSize
+    if ext == "":
+      await ctx.mofuwSend(
+        HTTP200 & "text/plain" & (if etagEnabled : "\c\lEtag:" & filePath.getEtag else :"" ))
+      await ctx.mofuwWrite()
+    else:
+      let mime = newMimetypes()
+  
+      await ctx.mofuwSend(
+        HTTP200 &
+        mime.getMimetype(ext[1 .. ^1], default = "application/octet-stream") & (if etagEnabled : "\c\lEtag:" & filePath.getEtag else :"" ))
+      await ctx.mofuwWrite()
+
+    while i != 0:
+      let file =
+        if i > 1024 * 1024 * 5:
+          i.dec(1024 * 1024 * 5)
+          await f.read(1024 * 1024 * 5)
+        else:
+          await f.read(i.int)
+      await ctx.mofuwSend(file)
+      await ctx.mofuwWrite()
+  else:
+    await ctx.fileResp(filePath, await f.readAll())
+
+  f.close()
+
 proc staticServe*(ctx: MofuwCtx, rootPath: string): Future[bool] {.async.} =
   var
     state = 0
@@ -295,11 +329,7 @@ proc staticServe*(ctx: MofuwCtx, rootPath: string): Future[bool] {.async.} =
           await ctx.mofuwSend(makeResp(HTTP304,"","") )
           return true
 
-      let
-        f = openAsync(filePath, fmRead)
-        file = await f.readAll()
-      close(f)
-      await ctx.fileResp(filePath, file)
+      await ctx.mofuwReadFile(filePath)
       return true
     else:
       return false
@@ -314,11 +344,7 @@ proc staticServe*(ctx: MofuwCtx, rootPath: string): Future[bool] {.async.} =
           await ctx.mofuwSend(makeResp(HTTP304,"","") )
           return true
 
-      let
-        f = openAsync(filePath, fmRead)
-        file = await f.readAll()
-      close(f)
-      await ctx.fileResp(filePath, file)
+      await ctx.mofuwReadFile(filePath)
       return true
     else:
       return false
