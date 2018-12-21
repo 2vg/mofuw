@@ -10,5 +10,5 @@ skipDirs      = @["images"]
 # Dependencies
 
 requires "nim >= 0.18.0"
-requires "https://github.com/2vg/mofuparser#head"
-requires "https://github.com/2vg/mofuhttputils#head"
+requires "https://github.com/2vg/mofuparser"
+requires "https://github.com/2vg/mofuhttputils"
