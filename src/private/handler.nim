@@ -41,7 +41,7 @@ proc handler*(servectx: ServeCtx, ctx: MofuwCtx) {.async.} =
         else:
           break
 
-      asyncCheck ctx.mofuwWrite()
+      if ctx.respLen != 0: asyncCheck ctx.mofuwWrite()
       ctx.bufLen = 0
       ctx.currentBufPos = 0
 

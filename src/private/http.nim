@@ -264,15 +264,22 @@ proc mofuwReadFile*(ctx: MofuwCtx, filePath: string) {.async.} =
   if fileSize > 1024 * 1024 * 5:
     var i = fileSize
     if ext == "":
-      await ctx.mofuwSend(
-        HTTP200 & "text/plain" & (if etagEnabled : "\c\lEtag:" & filePath.getEtag else :"" ))
+      await ctx.mofuwSend(baseResp(
+        HTTP200,
+        "text/plain" & (if etagEnabled : "\c\lEtag:" & filePath.getEtag else :""),
+        fileSize
+      ))
+      await ctx.mofuwSend("\r\l")
       await ctx.mofuwWrite()
     else:
       let mime = newMimetypes()
-  
-      await ctx.mofuwSend(
-        HTTP200 &
-        mime.getMimetype(ext[1 .. ^1], default = "application/octet-stream") & (if etagEnabled : "\c\lEtag:" & filePath.getEtag else :"" ))
+
+      await ctx.mofuwSend(baseResp(
+        HTTP200,
+        mime.getMimetype(ext[1 .. ^1], default = "application/octet-stream") & (if etagEnabled : "\c\lEtag:" & filePath.getEtag else :"" ),
+        fileSize
+      ))
+      await ctx.mofuwSend("\r\l")
       await ctx.mofuwWrite()
 
     while i != 0:
@@ -281,7 +288,9 @@ proc mofuwReadFile*(ctx: MofuwCtx, filePath: string) {.async.} =
           i.dec(1024 * 1024 * 5)
           await f.read(1024 * 1024 * 5)
         else:
-          await f.read(i.int)
+          let ii = i
+          i = 0
+          await f.read(ii.int)
       await ctx.mofuwSend(file)
       await ctx.mofuwWrite()
   else:
