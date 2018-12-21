@@ -258,7 +258,7 @@ proc fileResp(ctx: MofuwCtx, filePath, file: string) {.async.}=
 proc mofuwReadFile*(ctx: MofuwCtx, filePath: string) {.async.} =
   let
     f = openAsync(filePath, fmRead)
-    fileSize = getFileSize(filePath)
+    fileSize = getFileSize(filePath).int
     (_, _, ext) = splitFile(filePath)
 
   if fileSize > 1024 * 1024 * 5:
@@ -290,7 +290,7 @@ proc mofuwReadFile*(ctx: MofuwCtx, filePath: string) {.async.} =
         else:
           let ii = i
           i = 0
-          await f.read(ii.int)
+          await f.read(ii)
       await ctx.mofuwSend(file)
       await ctx.mofuwWrite()
   else:
