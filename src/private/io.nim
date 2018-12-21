@@ -32,7 +32,9 @@ when defined ssl:
 proc mofuwClose*(ctx: MofuwCtx) =
   when defined ssl:
     if unlikely ctx.isSSL:
+      dsicard SSLShutdown(ctx.sslHandle)
       ctx.sslHandle.SSLFree()
+      ctx.sslHandle = nil
   closeSocket(ctx.fd)
   ctx.freeCtx()
 
