@@ -59,6 +59,7 @@ proc mofuwServe*(ctx: ServeCtx, isSSL: bool) {.async.} =
 
     try:
       let data = await acceptAddr(server)
+      setBlocking(data[1].SocketHandle, false)
       let mCtx = ctx.initCtx(getCtx(ctx.readBufferSize, ctx.writeBuffersize), data[1], data[0])
       setCallBackTable(ctx, mCtx)
       mCtx.maxBodySize = ctx.maxBodySize

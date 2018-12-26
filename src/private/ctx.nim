@@ -149,7 +149,16 @@ when defined ssl:
     discard ctx.sslCtx.SSL_CTX_set_tlsext_servername_arg(addr serverctx.sslCtxTbl)
     ctx.sslHandle = SSLNew(ctx.sslCtx)
     discard SSL_set_fd(ctx.sslHandle, ctx.fd.SocketHandle)
-    if SSL_accept(ctx.sslHandle) != 1: return false
+    while true:
+      let sslret  = SSL_accept(ctx.sslHandle);
+      let ssl_eno = SSL_get_error(ctx.sslHandle, sslret)
+      case ssl_eno:
+        of SSL_ERROR_NONE:
+          return true
+        of SSL_ERROR_WANT_READ, SSL_ERROR_WANT_WRITE, SSL_ERROR_SYSCALL:
+          continue
+        else:
+          return false
 
   proc addCertAndKey*(serverctx: ServeCtx, cert, key: string, serverName = "", verify = false) =
     let ctx =
